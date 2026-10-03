@@ -209,7 +209,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _serve_static(self, path):
         if path == "/" or path == "":
-            path = "/index.html"
+            # index.html's "Open Folder…" local-filesystem flow would look
+            # broken to a public visitor (its endpoints 404 in PUBLIC_MODE)
+            # — land them on the upload-based page instead.
+            path = "/public.html" if PUBLIC_MODE else "/index.html"
         full = os.path.normpath(os.path.join(WEB_DIR, path.lstrip("/")))
         if not full.startswith(WEB_DIR) or not os.path.isfile(full):
             self.send_error(404)
