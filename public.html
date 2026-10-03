@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CT Scan Viewer</title>
+<link rel="stylesheet" href="style.css" />
+<style>
+  #uploadDropZone {
+    margin: 10px 0 4px;
+    padding: 18px 10px;
+    border: 1.5px dashed var(--border, #2a2f3a);
+    border-radius: 8px;
+    text-align: center;
+    color: var(--muted, #9ca3af);
+    font-size: 12.5px;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  #uploadDropZone.drag-over {
+    border-color: var(--accent, #3b82f6);
+    background: var(--panel-2, #1b1f26);
+  }
+  #uploadStatus {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted, #9ca3af);
+    min-height: 1.4em;
+  }
+  .upload-privacy-note {
+    margin-top: 14px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--muted, #8b93a1);
+  }
+</style>
+</head>
+<body data-mode="public">
+  <div id="app">
+    <header id="topbar">
+      <div class="brand">CT Scan Viewer</div>
+      <div id="studyLabel" class="study-label">No study loaded</div>
+
+      <div class="toolgroup" id="modeButtons">
+        <button id="modeCrosshair" class="icon-btn active" data-tooltip="Crosshair" aria-label="Crosshair">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="2" x2="12" y2="7"/>
+            <line x1="12" y1="17" x2="12" y2="22"/>
+            <line x1="2" y1="12" x2="7" y2="12"/>
+            <line x1="17" y1="12" x2="22" y2="12"/>
+          </svg>
+        </button>
+        <button id="modePanzoom" class="icon-btn" data-tooltip="Pan / Zoom (scroll)" aria-label="Pan and Zoom">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="3" x2="12" y2="21"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <polyline points="9 6 12 3 15 6"/>
+            <polyline points="9 18 12 21 15 18"/>
+            <polyline points="6 9 3 12 6 15"/>
+            <polyline points="18 9 21 12 18 15"/>
+          </svg>
+        </button>
+        <button id="modeMeasure" class="icon-btn" data-tooltip="Measure" aria-label="Measure">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2.5" y="9" width="19" height="6" rx="1.2"/>
+            <line x1="6" y1="9" x2="6" y2="12.5"/>
+            <line x1="10" y1="9" x2="10" y2="12.5"/>
+            <line x1="14" y1="9" x2="14" y2="12.5"/>
+            <line x1="18" y1="9" x2="18" y2="12.5"/>
+          </svg>
+        </button>
+        <button id="modeRotate" class="icon-btn" data-tooltip="Rotate 3D" aria-label="Rotate 3D">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(-25 12 12)"/>
+            <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="toolgroup">
+        <button id="toggleAdjust" class="icon-btn wide" data-tooltip="Image Adjustments" aria-label="Image Adjustments">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <circle cx="14" cy="6" r="2.2" fill="currentColor" stroke="none"/>
+            <line x1="4" y1="12" x2="20" y2="12"/>
+            <circle cx="9" cy="12" r="2.2" fill="currentColor" stroke="none"/>
+            <line x1="4" y1="18" x2="20" y2="18"/>
+            <circle cx="16" cy="18" r="2.2" fill="currentColor" stroke="none"/>
+          </svg>
+          <span>Adjust</span>
+        </button>
+      </div>
+
+      <div class="toolgroup dropdown" id="viewsDropdown">
+        <button id="viewsToggle" class="icon-btn wide" data-tooltip="Views" aria-label="Views">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7.5" height="7.5" rx="1"/>
+            <rect x="13.5" y="3" width="7.5" height="7.5" rx="1"/>
+            <rect x="3" y="13.5" width="7.5" height="7.5" rx="1"/>
+            <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1"/>
+          </svg>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div id="viewsMenu" class="dropdown-menu view-grid hidden">
+          <div class="view-card">
+            <button class="view-main" data-view="axial">
+              <svg class="view-icon" viewBox="0 0 24 24">
+                <path d="M12 3 4 7l8 4 8-4Z" fill="#ff3b30"/>
+                <path d="M4 7v10l8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                <path d="M20 7v10l-8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+              </svg>
+              <span>Axial</span>
+            </button>
+            <kbd>1</kbd>
+            <button class="view-popout-btn" data-popout="axial" data-tooltip="Open larger view" aria-label="Open larger Axial view">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="13" height="13" rx="1.5"/>
+                <path d="M14 3h7v7"/>
+                <path d="M21 3 12 12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="view-card">
+            <button class="view-main" data-view="sagittal">
+              <svg class="view-icon" viewBox="0 0 24 24">
+                <path d="M12 3 4 7l8 4 8-4Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                <path d="M4 7v10l8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                <path d="M20 7v10l-8 4V11Z" fill="#3b82f6"/>
+              </svg>
+              <span>Sagittal</span>
+            </button>
+            <kbd>2</kbd>
+            <button class="view-popout-btn" data-popout="sagittal" data-tooltip="Open larger view" aria-label="Open larger Sagittal view">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="13" height="13" rx="1.5"/>
+                <path d="M14 3h7v7"/>
+                <path d="M21 3 12 12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="view-card">
+            <button class="view-main" data-view="coronal">
+              <svg class="view-icon" viewBox="0 0 24 24">
+                <path d="M12 3 4 7l8 4 8-4Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                <path d="M4 7v10l8 4V11Z" fill="#34c759"/>
+                <path d="M20 7v10l-8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+              </svg>
+              <span>Coronal</span>
+            </button>
+            <kbd>3</kbd>
+            <button class="view-popout-btn" data-popout="coronal" data-tooltip="Open larger view" aria-label="Open larger Coronal view">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="13" height="13" rx="1.5"/>
+                <path d="M14 3h7v7"/>
+                <path d="M21 3 12 12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="view-card">
+            <button class="view-main" data-view="render">
+              <svg class="view-icon" viewBox="0 0 24 24">
+                <path d="M12 3 4 7l8 4 8-4Z" fill="#e5e7eb"/>
+                <path d="M4 7v10l8 4V11Z" fill="#9ca3af"/>
+                <path d="M20 7v10l-8 4V11Z" fill="#6b7280"/>
+              </svg>
+              <span>3D Rendering</span>
+            </button>
+            <kbd>4</kbd>
+            <button class="view-popout-btn" data-popout="render" data-tooltip="Open larger view" aria-label="Open larger 3D Rendering view">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="13" height="13" rx="1.5"/>
+                <path d="M14 3h7v7"/>
+                <path d="M21 3 12 12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="view-card">
+            <button class="view-main active" data-view="multi">
+              <svg class="view-icon" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="8" height="8" rx="1.2" fill="#ff3b30"/>
+                <rect x="13" y="3" width="8" height="8" rx="1.2" fill="#3b82f6"/>
+                <rect x="3" y="13" width="8" height="8" rx="1.2" fill="#34c759"/>
+                <rect x="13" y="13" width="8" height="8" rx="1.2" fill="#9ca3af"/>
+              </svg>
+              <span>4-Panel</span>
+            </button>
+            <kbd>5</kbd>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolgroup dropdown" id="obliqueDropdown">
+        <button id="obliqueToggle" class="icon-btn wide" data-tooltip="Plane Viewer" aria-label="Plane Viewer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 15 9 7l11 2-5 8Z" fill="#a78bfa" fill-opacity="0.85"/>
+          </svg>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div id="obliqueMenu" class="dropdown-menu hidden">
+          <div class="dropdown-section-label">Starting view</div>
+          <button data-oblique-start="axial">Axial</button>
+          <button data-oblique-start="sagittal">Sagittal</button>
+          <button data-oblique-start="coronal">Coronal</button>
+        </div>
+      </div>
+
+      <div class="toolgroup">
+        <button id="undoBtn" class="icon-btn" data-tooltip="Undo" aria-label="Undo" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 7 4 12l5 5"/>
+            <path d="M4 12h11a5 5 0 0 1 0 10h-1"/>
+          </svg>
+        </button>
+        <button id="redoBtn" class="icon-btn" data-tooltip="Redo" aria-label="Redo" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 7l5 5-5 5"/>
+            <path d="M20 12H9a5 5 0 0 0 0 10h1"/>
+          </svg>
+        </button>
+        <button id="resetAll" class="icon-btn" data-tooltip="Reset view" aria-label="Reset view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-3-6.7"/>
+            <polyline points="21 3 21 8 16 8"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="toolgroup" id="infoGroup">
+        <button id="infoBtn" class="icon-btn" data-tooltip="Info / Help" aria-label="Info and help">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <line x1="12" y1="11" x2="12" y2="16.5"/>
+            <circle cx="12" cy="7.4" r="0.9" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="body">
+      <aside id="sidebar">
+        <section class="sidebar-series-info">
+          <h3>Series Info</h3>
+          <div id="seriesInfo" class="cursor-info">—</div>
+        </section>
+
+        <h3 style="margin:14px 0 2px;">Upload a CT Scan</h3>
+        <div id="uploadDropZone">
+          Drag a folder of DICOM files here,<br />or
+          <div class="side-actions" style="justify-content:center; margin-top:8px;">
+            <button id="uploadBtn" class="primary">Choose Files…</button>
+          </div>
+          <input type="file" id="uploadInput" multiple webkitdirectory style="display:none;" />
+        </div>
+        <div id="uploadStatus"></div>
+
+        <div class="thickness-row">
+          <label for="sliceThickness">Slice thickness</label>
+          <input type="number" id="sliceThickness" min="0" step="0.1" placeholder="native" />
+          <span>mm</span>
+        </div>
+        <label class="chk thickness-fast"><input type="checkbox" id="fastPreview" /> Fast preview (skip slices instead of averaging)</label>
+
+        <p class="upload-privacy-note">
+          Your files are uploaded only to convert and display this scan in your browser.
+          They are not stored permanently — the server deletes them as soon as conversion
+          finishes (or automatically after an hour, at most).
+        </p>
+      </aside>
+
+      <main id="viewport">
+        <canvas id="gl"></canvas>
+        <div id="panelOverlay"></div>
+        <svg id="measureOverlay"></svg>
+        <div id="loadingOverlay" class="hidden">
+          <div class="loading-box">
+            <div id="loadingText">Converting DICOM series…</div>
+            <div class="progress-track"><div id="progressBar" class="progress-fill"></div></div>
+            <div id="progressPct">0%</div>
+          </div>
+        </div>
+      </main>
+
+      <aside id="rightPanel">
+        <div id="rightPanelHint" class="hint right-panel-hint">Open <strong>Adjust</strong> or <strong>Measure</strong> above to see options here.</div>
+
+        <div id="adjustPanel" class="hidden">
+          <section>
+            <h3>Image Adjustments</h3>
+            <label class="row">Brightness
+              <span class="slider-wrap">
+                <input type="range" id="brightness" min="0" max="100" value="50" list="brightnessTicks" />
+                <span class="slider-tick" aria-hidden="true"></span>
+                <datalist id="brightnessTicks"><option value="50"></option></datalist>
+              </span>
+            </label>
+            <div class="adjust-reset-row">
+              <button type="button" id="brightnessReset">Reset</button>
+            </div>
+            <label class="row">Contrast
+              <span class="slider-wrap">
+                <input type="range" id="contrast" min="0" max="100" value="50" list="contrastTicks" />
+                <span class="slider-tick" aria-hidden="true"></span>
+                <datalist id="contrastTicks"><option value="50"></option></datalist>
+              </span>
+            </label>
+            <div class="adjust-reset-row">
+              <button type="button" id="contrastReset">Reset</button>
+            </div>
+            <div class="histogram-wrap">
+              <canvas id="intensityHistogram" width="260" height="60"></canvas>
+              <div class="histogram-labels">
+                <span id="histMinLabel">—</span>
+                <span id="histMaxLabel">—</span>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3>3D Render</h3>
+            <div class="row">Clip slab</div>
+            <div class="dual-slider" id="slabSlider">
+              <div class="track-bg"></div>
+              <div class="track-fill" id="slabFill"></div>
+              <input type="range" id="slabBottom" min="0" max="1000" value="0" title="Bottom cutoff" />
+              <input type="range" id="slabTop" min="0" max="1000" value="1000" title="Top cutoff" />
+            </div>
+          </section>
+        </div>
+
+        <div id="measurePanel" class="hidden">
+          <section>
+            <h3>Measure</h3>
+            <div class="tool-grid" id="measureTools">
+              <button class="tool-btn tool-btn-wide" type="button" data-tool="annotation">Annotation</button>
+              <button class="tool-btn active" type="button" data-tool="line">Line</button>
+              <button class="tool-btn" type="button" data-tool="rectangle">Rectangle</button>
+              <button class="tool-btn" type="button" data-tool="ellipse">Ellipse</button>
+              <button class="tool-btn" type="button" data-tool="circle">Circle</button>
+            </div>
+            <div class="side-actions">
+              <button id="measureUndo">Undo last</button>
+              <button id="measureClear">Clear all</button>
+            </div>
+            <div class="hint">Drag in an Axial, Sagittal or Coronal panel — or in an open Plane Viewer pop-out — to draw. Click a shape to show it below; right-click (main panels) to delete it or add it to the table.</div>
+          </section>
+
+          <section id="measureLiveSection" class="hidden">
+            <h3>Active Measurement</h3>
+            <div id="measureLiveInfo" class="cursor-info">—</div>
+            <div class="histogram-wrap">
+              <canvas id="measureHistogram" width="260" height="60"></canvas>
+              <div class="histogram-labels">
+                <span id="measureHistMinLabel">—</span>
+                <span id="measureHistMaxLabel">—</span>
+              </div>
+            </div>
+            <label class="chk measure-hist-chk"><input type="checkbox" id="measureIncludeHist" /> Include histogram values</label>
+            <label class="chk measure-hist-chk"><input type="checkbox" id="measureExportHist" /> Export histograms</label>
+            <div class="side-actions">
+              <button id="measureMoveToTable" class="primary">Move to table</button>
+              <button id="measureDeleteSelected">Delete</button>
+            </div>
+          </section>
+
+          <section>
+            <h3>Table</h3>
+            <table id="measureTable" class="measure-table">
+              <thead><tr><th>#</th><th>Label</th><th>Value</th><th></th></tr></thead>
+              <tbody id="measureTableBody"></tbody>
+            </table>
+            <div class="side-actions">
+              <button id="exportCsvBtn">Export CSV</button>
+              <button id="exportHistBtn">Export Histograms</button>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="popoutWindow" class="popout hidden">
+    <div id="popoutTitlebar" class="popout-titlebar">
+      <span id="popoutTitle">View</span>
+      <div class="popout-titlebar-actions">
+        <button id="popoutExternal" class="popout-close" data-tooltip="Pop out to a separate window" aria-label="Pop out to a separate window">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+            <rect x="3" y="3" width="13" height="13" rx="1.5"/>
+            <path d="M14 3h7v7"/>
+            <path d="M21 3 12 12"/>
+          </svg>
+        </button>
+        <button id="popoutClose" class="popout-close" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <div class="popout-body">
+      <div id="popoutGlWrap"><canvas id="popoutGl"></canvas></div>
+      <canvas id="obliqueCanvas" class="hidden"></canvas>
+    </div>
+    <div id="obliqueControls" class="popout-oblique-controls hidden">
+      <label>Tilt <input type="range" id="obliqueElevation" min="0" max="180" value="90" /></label>
+      <label>Spin <input type="range" id="obliqueAzimuth" min="0" max="360" value="0" /></label>
+      <label>Depth <input type="range" id="obliqueDepth" min="-100" max="100" value="0" /></label>
+    </div>
+    <div id="popoutHint" class="popout-hint"></div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
