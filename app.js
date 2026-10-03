@@ -2,6 +2,7 @@ import { Niivue, SLICE_TYPE, DRAG_MODE, NVMesh } from "https://unpkg.com/@niivue
 import { patchCrosshair3DColored } from "./crosshair3d.js";
 import { obliqueBasis, obliqueQuadCorners, obliquePixelToMM } from "./oblique-math.js";
 import { createMeasureController } from "./measure.js";
+import { Dcm2niix } from "./vendor/dcm2niix/index.js";
 
 const nv = new Niivue({
   show3Dcrosshair: true,
@@ -12,6 +13,11 @@ const nv = new Niivue({
 
 window.nv = nv;
 let currentStudyId = null;
+// Set instead of currentStudyId for a volume converted client-side (public
+// mode's upload flow, see wireUploadUI) — there's no server-side study id
+// for it, just a local blob: URL. The two are mutually exclusive; whichever
+// load path ran most recently clears the other (see selectStudy/finishLoad).
+let currentVolumeBlobUrl = null;
 let pollTimer = null;
 let measureCtl = null;
 
@@ -413,11 +419,14 @@ function wireFolderUI() {
 
 // ---- public.html's upload flow (PUBLIC_MODE) -----------------------------
 // Replaces local folder browsing: visitor picks their own DICOM files/folder,
-// they're uploaded to POST /api/upload (server.py assigns a session id and
-// starts converting immediately), then the exact same selectStudy()/
-// finishLoad() polling path used for a local study runs unchanged — /api/
-// convert is idempotent against a conversion /api/upload already started,
-// so it just joins the in-progress poll instead of restarting anything.
+// which are converted to a NIfTI volume entirely in the browser (dcm2niix
+// compiled to WASM, see web/vendor/dcm2niix/ — vendored locally rather than
+// imported from a CDN because cross-origin Worker construction is blocked by
+// browsers regardless of CORS headers; same-origin avoids that). Nothing is
+// ever sent to the server — the converted volume is handed to NiiVue as a
+// browser-local blob: URL via the same finishLoad() used for a local study,
+// just with currentVolumeBlobUrl set instead of currentStudyId (see
+// currentVolumeUrl() above, used by every pop-out path too).
 function wireUploadUI() {
   const input = document.getElementById("uploadInput");
   const btn = document.getElementById("uploadBtn");
@@ -443,29 +452,31 @@ function wireUploadUI() {
   async function handleUpload(fileList) {
     const files = Array.from(fileList);
     btn.disabled = true;
-    status.textContent = `Uploading ${files.length} file${files.length === 1 ? "" : "s"}…`;
-
-    const form = new FormData();
-    for (const f of files) form.append("files", f, f.name);
-    const { qs } = loadParams();
-    const uploadQs = qs ? "?" + qs.slice(1) : "";
+    status.textContent = `Converting ${files.length} file${files.length === 1 ? "" : "s"} in your browser…`;
+    showOverlay(true, "Converting DICOM series to volume…", 0);
 
     try {
-      const res = await fetch(`/api/upload${uploadQs}`, { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        status.textContent = data.error || `Upload failed (${res.status})`;
-        return;
+      const dcm2niix = new Dcm2niix();
+      await dcm2niix.init();
+      const converted = await dcm2niix.input(files).run();
+      const niiFile = converted.find((f) => /\.nii(\.gz)?$/i.test(f.name));
+      if (!niiFile) {
+        throw new Error("No image volume in the conversion output — check that the folder contains a DICOM series.");
       }
+
       status.textContent = "";
-      await selectStudy({
-        id: data.id,
-        label: "Uploaded scan",
-        seriesDescription: `${files.length} files`,
-        sliceCount: files.length,
-      });
+      currentStudyId = null;
+      const prevBlobUrl = currentVolumeBlobUrl;
+      currentVolumeBlobUrl = URL.createObjectURL(niiFile);
+      if (pollTimer) clearInterval(pollTimer);
+      await finishLoad(
+        { label: "Uploaded scan", seriesDescription: `${files.length} files`, sliceCount: files.length },
+        currentVolumeBlobUrl
+      );
+      if (prevBlobUrl) URL.revokeObjectURL(prevBlobUrl);
     } catch (e) {
-      status.textContent = `Upload failed: ${e.message}`;
+      status.textContent = `Conversion failed: ${e.message}`;
+      showOverlay(false);
     } finally {
       btn.disabled = false;
     }
@@ -623,7 +634,7 @@ let popoutKind = null;
 let externalPopout = null;
 
 async function openPopout(kind) {
-  if (!currentStudyId) return;
+  if (!nv.volumes.length) return;
   if (externalPopout && !externalPopout.win.closed) {
     externalPopout.kind = kind;
     try {
@@ -680,10 +691,22 @@ async function openPopout(kind) {
   updateObliquePlaneIndicator();
 }
 
-async function refreshPopoutVolume() {
-  if (!popNv || !currentStudyId || !nv.volumes.length) return;
+// The current volume's URL, regardless of which path loaded it — a
+// server-backed /api/volume?id=... fetch (local research use, selectStudy)
+// or a browser-local blob: URL (public upload flow's client-side
+// conversion, see wireUploadUI/handleUpload). Both work identically with
+// NiiVue's loadVolumes() and plain fetch(), so every pop-out path (the
+// in-page popNv, the external pop-out window) can stay agnostic to which
+// one produced the currently-loaded volume.
+function currentVolumeUrl() {
+  if (currentVolumeBlobUrl) return currentVolumeBlobUrl;
   const { qs } = loadParams();
-  const url = `/api/volume?id=${encodeURIComponent(currentStudyId)}${qs}&t=${Date.now()}`;
+  return `/api/volume?id=${encodeURIComponent(currentStudyId)}${qs}&t=${Date.now()}`;
+}
+
+async function refreshPopoutVolume() {
+  if (!popNv || !nv.volumes.length) return;
+  const url = currentVolumeUrl();
   if (popNv.volumes.length) popNv.removeVolume(popNv.volumes[0]);
   await popNv.loadVolumes([{ url, name: "volume.nii.gz" }]);
   const src = nv.volumes[0];
@@ -780,7 +803,7 @@ const OBLIQUE_START_ANGLES = {
 };
 
 function openObliqueFromButton(startKind) {
-  if (!currentStudyId) return;
+  if (!nv.volumes.length) return;
   if (popoutKind) closePopout();
   const { azimuthDeg, elevationDeg } = OBLIQUE_START_ANGLES[startKind];
   const qs =
@@ -814,10 +837,9 @@ function refreshPopoutMeasureOverlay() {
 window.ctviewerPopoutHost = {
   getInitialState(kind) {
     if (!nv.volumes.length) return null;
-    const { qs } = loadParams();
     return {
       kind,
-      volumeUrl: `/api/volume?id=${encodeURIComponent(currentStudyId)}${qs}&t=${Date.now()}`,
+      volumeUrl: currentVolumeUrl(),
       calMin: nv.volumes[0].cal_min,
       calMax: nv.volumes[0].cal_max,
       opacity: nv.volumes[0].opacity,
@@ -1496,20 +1518,22 @@ function loadParams() {
 async function selectStudy(study) {
   if (pollTimer) clearInterval(pollTimer);
   currentStudyId = study.id;
+  if (currentVolumeBlobUrl) { URL.revokeObjectURL(currentVolumeBlobUrl); currentVolumeBlobUrl = null; }
   const { qs } = loadParams();
 
   document.querySelectorAll(".study-btn").forEach((b) =>
     b.classList.toggle("selected", b.dataset.id === study.id)
   );
-  document.getElementById("studyLabel").textContent = `${study.label} — ${study.seriesDescription} (${study.sliceCount} slices)`;
 
   showOverlay(true, "Preparing series…", 0);
 
   const startRes = await fetch(`/api/convert?id=${encodeURIComponent(study.id)}${qs}`, { method: "POST" });
   const startJson = await startRes.json();
 
+  const volUrl = () => `/api/volume?id=${encodeURIComponent(study.id)}${qs}&t=${Date.now()}`;
+
   if (startJson.status === "ready") {
-    await finishLoad(study, qs);
+    await finishLoad(study, volUrl());
     return;
   }
 
@@ -1520,7 +1544,7 @@ async function selectStudy(study) {
 
     if (status.status === "ready") {
       clearInterval(pollTimer);
-      await finishLoad(study, qs);
+      await finishLoad(study, volUrl());
     } else if (status.status === "error") {
       clearInterval(pollTimer);
       showOverlay(true, `Error: ${status.error}`, 0);
@@ -1528,9 +1552,8 @@ async function selectStudy(study) {
   }, 600);
 }
 
-async function finishLoad(study, qs) {
+async function finishLoad(study, url) {
   showOverlay(true, "Loading volume into viewer…", 100);
-  const url = `/api/volume?id=${encodeURIComponent(study.id)}${qs}&t=${Date.now()}`;
 
   if (nv.volumes.length) {
     nv.removeVolume(nv.volumes[0]);
@@ -1547,6 +1570,7 @@ async function finishLoad(study, qs) {
   document.getElementById("undoBtn").disabled = true;
   document.getElementById("redoBtn").disabled = true;
 
+  document.getElementById("studyLabel").textContent = `${study.label} — ${study.seriesDescription} (${study.sliceCount} slices)`;
   document.getElementById("seriesInfo").textContent =
     `Study: ${study.label}\nSeries: ${study.seriesDescription}\nSlices: ${study.sliceCount}\nVoxel size: ${voxelSizeText()}`;
   measureCtl.clearAll();
