@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ctviewer-public
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    envVars:
+      - key: PUBLIC_MODE
+        value: "1"
+      - key: PYTHON_VERSION
+        value: 3.11.9

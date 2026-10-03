@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dicom Viewer — Pop-out</title>
+<link rel="stylesheet" href="style.css" />
+<style>
+  html, body { height: 100%; margin: 0; background: #000; }
+  #popoutRoot { display: flex; flex-direction: column; height: 100vh; }
+
+  /* Oblique + 3D Rendering split: two panels side by side instead of the
+     normal single full-pane view. .popout-body is normally plain block flow
+     (position:relative, with children either absolutely positioned or
+     filling it via width/height:100%) — NOT a flex container — so switching
+     to a side-by-side layout needs display:flex here too, not just
+     flex-direction. #obliqueRenderWrap/#obliqueSplitter are only ever shown
+     together with .split-oblique on the parent, so their sizing can be
+     unconditional; #obliquePaneWrap (the plane-slice canvas + its measurement
+     SVG overlay) also exists in the non-split (oblique-only) mode, so its
+     flex-basis only applies while split — set via inline style by
+     wireObliqueSplitter() in popout.js (default 50/50), not hardcoded here,
+     since the user can drag #obliqueSplitter to resize the two panels. */
+  #popoutBody.split-oblique { display: flex; flex-direction: row; }
+  #popoutBody.split-oblique #obliquePaneWrap { flex: 1 1 50%; min-width: 80px; }
+  #obliquePaneWrap { position: relative; }
+  #obliquePaneWrap.hidden { display: none; }
+  #obliquePaneWrap canvas { width: 100%; height: 100%; display: block; }
+  /* Measurement overlay for the plane-slice canvas — mirrors the main
+     window's #measureOverlay (see style.css): an SVG is a replaced element,
+     so inset:0 alone won't stretch it like a plain div; it needs explicit
+     100% width/height too, or it falls back to its 300x150 intrinsic
+     default. */
+  #measureOverlayOblique {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  #obliqueSplitter {
+    display: none;
+    flex: 0 0 7px;
+    width: 7px;
+    cursor: col-resize;
+    position: relative;
+  }
+  #obliqueSplitter::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border, #2a2f38);
+    transform: translateX(-50%);
+  }
+  #obliqueSplitter:hover::before,
+  #obliqueSplitter.dragging::before {
+    background: var(--accent, #4da3ff);
+    width: 2px;
+  }
+  #popoutBody.split-oblique #obliqueSplitter { display: block; }
+  #obliqueRenderWrap {
+    position: relative;
+    height: 100%;
+    flex: 1 1 50%;
+    min-width: 80px;
+  }
+  #obliqueRenderWrap.hidden { display: none; }
+  #obliqueRenderWrap canvas { width: 100%; height: 100%; display: block; }
+
+  /* Shared pill switch — used by both the Lock toggle and the 3D View
+     on/off toggle. .on marks the "right-hand" state (Plane / 3D View on);
+     the thumb slides and turns accent-colored to match. */
+  .switch {
+    width: 32px;
+    height: 18px;
+    padding: 2px;
+    border-radius: 10px;
+    border: 1px solid var(--border, #2a2f38);
+    background: var(--panel-2, #1b1f26);
+    cursor: pointer;
+    position: relative;
+    flex: 0 0 auto;
+  }
+  .switch .switch-thumb {
+    display: block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--muted, #8b93a1);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .switch.on { border-color: var(--accent, #4da3ff); }
+  .switch.on .switch-thumb { transform: translateX(14px); background: var(--accent, #4da3ff); }
+
+  #obliqueReset { width: 26px; height: 24px; flex: 0 0 auto; padding: 0; }
+  #obliqueReset svg { width: 14px; height: 14px; }
+
+  /* Mode buttons for the plane panel (panel 1) — Crosshair/Pan/Zoom,
+     mirroring the main toolbar's own mode buttons but scoped to this window
+     so the user doesn't need to switch tools in the main window to use them
+     here. Smaller than the main toolbar's icon-btn to fit this narrow bar
+     alongside the Tilt/Rotate/Depth sliders; wraps to its own row if the
+     window is too narrow instead of overflowing. */
+  .popout-oblique-controls { flex-wrap: wrap; row-gap: 10px; }
+  .popout-oblique-modes { display: flex; gap: 4px; flex: 0 0 auto; }
+  .popout-oblique-modes .icon-btn { width: 26px; height: 24px; }
+  .popout-oblique-modes .icon-btn svg { width: 15px; height: 15px; }
+
+  /* Lock toggle — picks what Tilt/Rotate/Depth actually move: "Plane"
+     (default, left/off) moves the plane through a fixed object; "Object"
+     (right/on) holds the plane fixed and moves the object instead. See
+     setObliqueLockMode() in popout.js. Sits in its own header column,
+     centered over the Rotate slider below it. */
+  .popout-lock-toggle { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 11px; color: var(--muted, #8b93a1); }
+
+  /* Plane Controls group — its own header row (label + Reset over Tilt,
+     the Lock toggle over Rotate, the 3D View toggle over Depth) above the
+     Tilt/Rotate/Depth sliders, visually separated from the Crosshair/Pan/
+     Zoom mode buttons sharing this same bar. The header's 3 columns use the
+     same flex proportions as the slider row below so each one lines up
+     over its slider. */
+  .popout-plane-controls { display: flex; flex-direction: column; gap: 6px; flex: 1 1 280px; }
+  .popout-plane-controls-header { display: flex; align-items: center; gap: 14px; }
+  .popout-plane-controls-header-col { flex: 1 1 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; row-gap: 4px; }
+  .popout-plane-controls-header-col.col-rotate { justify-content: center; }
+  .popout-plane-controls-header-col.col-depth { justify-content: flex-end; }
+  .popout-plane-controls-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted, #8b93a1);
+  }
+  .popout-3d-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted, #8b93a1); }
+  .popout-plane-controls-sliders { display: flex; gap: 14px; }
+  .popout-plane-controls-sliders label { display: flex; align-items: center; gap: 6px; flex: 1 1 0; }
+  .popout-plane-controls-sliders .slider-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+  }
+  .popout-plane-controls-sliders .slider-wrap input[type="range"] { flex: 1 1 auto; margin: 0; }
+</style>
+</head>
+<body>
+  <div id="popoutRoot">
+    <div class="popout-body" id="popoutBody">
+      <div id="popoutGlWrap"><canvas id="popoutGl"></canvas></div>
+      <div id="obliquePaneWrap" class="hidden">
+        <canvas id="obliqueCanvas"></canvas>
+        <svg id="measureOverlayOblique"></svg>
+      </div>
+      <div id="obliqueSplitter"></div>
+      <div id="obliqueRenderWrap" class="hidden"><canvas id="obliqueRenderGl"></canvas></div>
+    </div>
+    <div id="obliqueControls" class="popout-oblique-controls hidden">
+      <div class="popout-plane-controls">
+        <div class="popout-plane-controls-header">
+          <div class="popout-plane-controls-header-col col-tilt">
+            <span class="popout-plane-controls-label">Plane Controls</span>
+            <button id="obliqueReset" class="icon-btn" type="button" data-tooltip="Reset to original position" aria-label="Reset to original position">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-3-6.7"/>
+                <polyline points="21 3 21 8 16 8"/>
+              </svg>
+            </button>
+            <div class="popout-oblique-modes" id="obliqueModeButtons">
+              <button id="obliqueModeCrosshair" class="icon-btn active" type="button" data-tooltip="Crosshair" aria-label="Crosshair">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="5"/>
+                  <line x1="12" y1="2" x2="12" y2="7"/>
+                  <line x1="12" y1="17" x2="12" y2="22"/>
+                  <line x1="2" y1="12" x2="7" y2="12"/>
+                  <line x1="17" y1="12" x2="22" y2="12"/>
+                </svg>
+              </button>
+              <button id="obliqueModePanZoom" class="icon-btn" type="button" data-tooltip="Pan / Zoom (scroll)" aria-label="Pan and Zoom">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="3" x2="12" y2="21"/>
+                  <line x1="3" y1="12" x2="21" y2="12"/>
+                  <polyline points="9 6 12 3 15 6"/>
+                  <polyline points="9 18 12 21 15 18"/>
+                  <polyline points="6 9 3 12 6 15"/>
+                  <polyline points="18 9 21 12 18 15"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="popout-plane-controls-header-col col-rotate">
+            <div class="popout-lock-toggle">
+              <span>Plane</span>
+              <button id="obliqueLockToggle" class="switch" type="button" role="switch" aria-checked="false" data-tooltip="Plane: the sliders move the plane through a fixed object. Object: the sliders hold the plane fixed and move the object instead.">
+                <span class="switch-thumb"></span>
+              </button>
+              <span>Object</span>
+            </div>
+          </div>
+          <div class="popout-plane-controls-header-col col-depth">
+            <div class="popout-3d-toggle">
+              <button id="obliqueToggleRender" class="switch on" type="button" role="switch" aria-checked="true" data-tooltip="Show/hide the 3D View panel">
+                <span class="switch-thumb"></span>
+              </button>
+              <span>3D View</span>
+            </div>
+          </div>
+        </div>
+        <div class="popout-plane-controls-sliders">
+          <label>Tilt
+            <span class="slider-wrap">
+              <input type="range" id="obliqueElevation" min="-90" max="90" value="0" list="tiltTicks" />
+              <span class="slider-tick" aria-hidden="true"></span>
+              <datalist id="tiltTicks"><option value="0"></option></datalist>
+            </span>
+          </label>
+          <label>Rotate
+            <span class="slider-wrap">
+              <input type="range" id="obliqueAzimuth" min="-180" max="180" value="0" list="rotateTicks" />
+              <span class="slider-tick" aria-hidden="true"></span>
+              <datalist id="rotateTicks"><option value="0"></option></datalist>
+            </span>
+          </label>
+          <label>Depth
+            <span class="slider-wrap">
+              <input type="range" id="obliqueDepth" min="-100" max="100" value="0" list="depthTicks" />
+              <span class="slider-tick" aria-hidden="true"></span>
+              <datalist id="depthTicks"><option value="0"></option></datalist>
+            </span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div id="popoutHint" class="popout-hint"></div>
+  </div>
+  <script type="module" src="popout.js"></script>
+</body>
+</html>
