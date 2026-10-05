@@ -104,6 +104,7 @@ export function createMeasureController(nv, opts = {}) {
 
   function setActive(isActive) {
     active = isActive;
+    nv.canvas.classList.toggle("measure-dot-cursor", active);
     if (active) nv.opts.dragModePrimary = dragModeForTool(currentTool);
     clearDrag();
     if (onStateChange) onStateChange(active, currentTool);

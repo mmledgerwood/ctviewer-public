@@ -90,6 +90,7 @@ const obliqueModeButtons = {
 function setObliqueMode(mode) {
   obliqueMode = mode;
   for (const m in obliqueModeButtons) obliqueModeButtons[m].classList.toggle("active", m === mode);
+  renderObliqueSlice();
 }
 for (const m in obliqueModeButtons) {
   obliqueModeButtons[m].addEventListener("click", () => setObliqueMode(m));
@@ -529,15 +530,17 @@ function renderObliqueSlice() {
   // i.e. the plane's true center (anchor + depth along the normal), so this
   // marker and the plane stay linked by construction, including through
   // Depth changes.
-  const cx = W / 2 - obliquePanU / mmPerPx, cy = H / 2 - obliquePanV / mmPerPx, arm = 9, gap = 3;
-  ctx.strokeStyle = "#fbbf24";
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(cx - arm, cy); ctx.lineTo(cx - gap, cy);
-  ctx.moveTo(cx + gap, cy); ctx.lineTo(cx + arm, cy);
-  ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy - gap);
-  ctx.moveTo(cx, cy + gap); ctx.lineTo(cx, cy + arm);
-  ctx.stroke();
+  if (obliqueMode === "crosshair" && !mainMeasureActive) {
+    const cx = W / 2 - obliquePanU / mmPerPx, cy = H / 2 - obliquePanV / mmPerPx, arm = 9, gap = 3;
+    ctx.strokeStyle = "#fbbf24";
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - arm, cy); ctx.lineTo(cx - gap, cy);
+    ctx.moveTo(cx + gap, cy); ctx.lineTo(cx + arm, cy);
+    ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy - gap);
+    ctx.moveTo(cx, cy + gap); ctx.lineTo(cx, cy + arm);
+    ctx.stroke();
+  }
 
   const planeParams = {
     azimuthDeg, elevationDeg, depthMM, rotateDeg,
@@ -905,6 +908,7 @@ window.ctviewerPopoutClient = {
     mainMeasureActive = active;
     if (obliqueMeasureCtl) {
       obliqueMeasureCtl.setMeasureState(active, tool);
+      renderObliqueSlice();
       obliqueMeasureCtl.renderOverlay();
     }
   },
