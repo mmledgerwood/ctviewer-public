@@ -72,12 +72,9 @@ export function createMeasureController(nv, opts = {}) {
   const histMinLabel = document.getElementById("measureHistMinLabel");
   const histMaxLabel = document.getElementById("measureHistMaxLabel");
   const includeHistChk = document.getElementById("measureIncludeHist");
-  const exportHistChk = document.getElementById("measureExportHist");
-  const moveToTableBtn = document.getElementById("measureMoveToTable");
   const tableBody = document.getElementById("measureTableBody");
   const exportCsvBtn = document.getElementById("exportCsvBtn");
   const exportHistBtn = document.getElementById("exportHistBtn");
-  const deleteSelectedBtn = document.getElementById("measureDeleteSelected");
   const toolButtons = document.querySelectorAll("#measureTools .tool-btn");
 
   function canvasPos(e) {
@@ -237,6 +234,7 @@ export function createMeasureController(nv, opts = {}) {
         label: text,
       };
       measurements.push(rec);
+      addMeasurementToTable(rec);
       selectMeasurement(rec);
       return;
     }
@@ -264,6 +262,7 @@ export function createMeasureController(nv, opts = {}) {
       label: null,
     };
     measurements.push(rec);
+    addMeasurementToTable(rec);
     selectMeasurement(rec);
   }
 
@@ -289,6 +288,7 @@ export function createMeasureController(nv, opts = {}) {
       nativeArr: "completedMeasurements",
     };
     measurements.push(rec);
+    addMeasurementToTable(rec);
     nativeJustCompleted = true;
     drag = null;
     selectMeasurement(rec);
@@ -560,6 +560,7 @@ export function createMeasureController(nv, opts = {}) {
       if (text === null) { refreshBox(); return; }
       const rec = { id: nextId++, surface: "oblique", tool: "annotation", planeKey: d.planeKey, points: [d.startMM, mm], valueMM: null, label: text };
       measurements.push(rec);
+      addMeasurementToTable(rec);
       selectMeasurement(rec);
       if (onObliqueChange) onObliqueChange();
       return;
@@ -568,6 +569,7 @@ export function createMeasureController(nv, opts = {}) {
     if (d.tool === "line") {
       const rec = { id: nextId++, surface: "oblique", tool: "line", planeKey: d.planeKey, points: [d.startMM, mm], valueMM: rawDist(d.startMM, mm), label: null };
       measurements.push(rec);
+      addMeasurementToTable(rec);
       selectMeasurement(rec);
       if (onObliqueChange) onObliqueChange();
       return;
@@ -581,6 +583,7 @@ export function createMeasureController(nv, opts = {}) {
     const value = d.tool === "ellipse" || d.tool === "circle" ? Math.PI * (w / 2) * (h / 2) : area;
     const rec = { id: nextId++, surface: "oblique", tool: d.tool, planeKey: d.planeKey, points: c, valueMM: value, label: null };
     measurements.push(rec);
+    addMeasurementToTable(rec);
     selectMeasurement(rec);
     if (onObliqueChange) onObliqueChange();
   }
@@ -792,8 +795,10 @@ export function createMeasureController(nv, opts = {}) {
     if (m.surface === "oblique" && onObliqueChange) onObliqueChange();
   }
 
-  function deleteSelected() {
-    if (selected) removeMeasurement(selected);
+  function addMeasurementToTable(rec) {
+    if (measureTable.some((row) => row.measurementId === rec.id)) return;
+    const withHist = includeHistChk.checked;
+    addToTable(rec, withHist, withHist);
   }
 
   function removeTableRowsFor(measurementId) {
@@ -935,17 +940,12 @@ export function createMeasureController(nv, opts = {}) {
   }
 
   toolButtons.forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
-  moveToTableBtn.addEventListener("click", () => {
-    if (!selected) return;
-    addToTable(selected, includeHistChk.checked, exportHistChk.checked);
-  });
   exportCsvBtn.addEventListener("click", () => downloadCsv(tableToCsv(measureTable), "measurements.csv"));
   exportHistBtn.addEventListener("click", () => {
     const csv = histogramsToCsv(measureTable);
     if (!csv) { window.alert('No table rows are marked "Export histograms" with histogram data.'); return; }
     downloadCsv(csv, "histograms.csv");
   });
-  if (deleteSelectedBtn) deleteSelectedBtn.addEventListener("click", deleteSelected);
   wirePassiveObserver();
   wireCustomDraw();
   nv.onMeasurementCompleted = handleMeasurementCompleted;
@@ -957,7 +957,6 @@ export function createMeasureController(nv, opts = {}) {
     handleContextMenu,
     undoLast,
     clearAll,
-    deleteSelected,
     dragModeForTool,
     get currentTool() { return currentTool; },
     get isActive() { return active; },
