@@ -310,7 +310,17 @@ export function createMeasureController(nv, opts = {}) {
     return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 1e-4;
   }
 
+  const CLOSE_PX = 14;
+
   function addMultiPoint(tile, px, py) {
+    if (multi && multi.tool === "spline" && multi.pts.length >= 3 && multi.axCorSag === tile.axCorSag &&
+        Math.abs(multi.sliceFrac - tile.sliceFrac) <= SLICE_EPS) {
+      const first = nv.frac2canvasPosWithTile(multi.pts[0], multi.axCorSag);
+      if (first && Math.hypot(first.pos[0] - px, first.pos[1] - py) <= CLOSE_PX * (nv.uiData.dpr || 1)) {
+        finishMulti();
+        return;
+      }
+    }
     const frac = nv.canvasPos2frac([px, py]);
     if (multi && (multi.axCorSag !== tile.axCorSag || Math.abs(multi.sliceFrac - tile.sliceFrac) > SLICE_EPS)) {
       multi = null;
@@ -948,8 +958,10 @@ export function createMeasureController(nv, opts = {}) {
     const line = multi.pts.map(toScreen).filter(Boolean);
     const cur = toScreen(multi.curFrac);
     if (cur) line.push(cur);
-    if (line.length < 2) return "";
-    return `<polyline class="meas-shape" points="${line.map(pt).join(" ")}" stroke="#4da3ff" fill="none"/>`;
+    const start = multi.tool === "spline" && line.length ? line[0] : null;
+    const ring = start ? `<circle class="meas-shape" cx="${start[0]}" cy="${start[1]}" r="${CLOSE_PX}" fill="none" stroke="#fbbf24" stroke-width="2"/>` : "";
+    if (line.length < 2) return ring;
+    return `<polyline class="meas-shape" points="${line.map(pt).join(" ")}" stroke="#4da3ff" fill="none"/>` + ring;
   }
 
   function liveShapeSvg() {
@@ -1152,7 +1164,6 @@ export function createMeasureController(nv, opts = {}) {
       const ni = nv.document[m.nativeArr].indexOf(m.nativeRef);
       if (ni >= 0) nv.document[m.nativeArr].splice(ni, 1);
     }
-    removeTableRowsFor(m.id);
     if (selected === m) { selected = null; refreshBox(); }
     nv.drawScene();
     if (m.surface === "oblique" && onObliqueChange) onObliqueChange();
@@ -1161,13 +1172,18 @@ export function createMeasureController(nv, opts = {}) {
   function clearAll() {
     const hadOblique = measurements.some((m) => m.surface === "oblique");
     measurements.length = 0;
-    measureTable.length = 0;
-    renderTable();
     selected = null;
     hideBox();
     nv.document.completedMeasurements.length = 0;
     nv.drawScene();
     if (hadOblique && onObliqueChange) onObliqueChange();
+  }
+
+  // Loading a new volume starts fresh, table included.
+  function resetAll() {
+    clearAll();
+    measureTable.length = 0;
+    renderTable();
   }
 
   toolButtons.forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
@@ -1188,6 +1204,7 @@ export function createMeasureController(nv, opts = {}) {
     handleContextMenu,
     undoLast,
     clearAll,
+    resetAll,
     dragModeForTool,
     get currentTool() { return currentTool; },
     get isActive() { return active; },

@@ -1604,7 +1604,7 @@ async function finishLoad(study, url) {
   document.getElementById("studyLabel").textContent = `${study.label} — ${study.seriesDescription} (${study.sliceCount} slices)`;
   document.getElementById("seriesInfo").textContent =
     `Study: ${study.label}\nSeries: ${study.seriesDescription}\nSlices: ${study.sliceCount}\nVoxel size: ${voxelSizeText()}`;
-  measureCtl.clearAll();
+  measureCtl.resetAll();
 
   if (popNv && !document.getElementById("popoutWindow").classList.contains("hidden")) {
     await refreshPopoutVolume();

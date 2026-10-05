@@ -31,6 +31,7 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
   let pressPx = null; // click-based tools (Spline/Angle): where the current press began
   let hoverPx = null; // last pointer position over the canvas, internal pixels
   const CUSTOM_AREA_TOOLS = new Set(["rectangle", "ellipse", "circle"]);
+  const CLOSE_CSS_PX = 14;
 
   function setMeasureState(active, tool) {
     mainActive = active;
@@ -171,7 +172,19 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
         const [px, py] = cssToInternal(e.clientX, e.clientY);
         if (Math.hypot(px - press[0], py - press[1]) < 3) {
           const params = getPlaneParams();
-          try { host.measureClickOblique(pixelToMM(press[0], press[1], params), planeKey(params)); } catch { /* opener gone */ }
+          let closes = false;
+          try {
+            const prog = host.getObliqueInProgress(planeKey(params));
+            if (prog && prog.tool === "spline" && prog.pts.length >= 3) {
+              const first = mmToPixel(prog.pts[0], params);
+              const reach = CLOSE_CSS_PX * canvas.width / canvas.getBoundingClientRect().width;
+              closes = Math.hypot(first[0] - press[0], first[1] - press[1]) <= reach;
+            }
+          } catch { /* opener gone */ }
+          try {
+            if (closes) host.measureDblClickOblique();
+            else host.measureClickOblique(pixelToMM(press[0], press[1], params), planeKey(params));
+          } catch { /* opener gone */ }
         }
         renderOverlay();
         return;
@@ -232,6 +245,10 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
       if (hoverPx) line.push(internalToCss(hoverPx));
       if (line.length >= 2) {
         parts.push(`<polyline class="meas-shape" points="${line.map(pt).join(" ")}" stroke="#4da3ff" fill="none"/>`);
+      }
+      if (progress.tool === "spline") {
+        const [sx, sy] = internalToCss(mmToPixel(progress.pts[0], params));
+        parts.push(`<circle class="meas-shape" cx="${sx}" cy="${sy}" r="${CLOSE_CSS_PX}" fill="none" stroke="#fbbf24" stroke-width="2"/>`);
       }
     }
     svg.innerHTML = parts.join("");
