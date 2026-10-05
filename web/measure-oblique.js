@@ -32,6 +32,7 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
   function setMeasureState(active, tool) {
     mainActive = active;
     mainTool = tool;
+    canvas.classList.toggle("measure-dot-cursor", active);
     if (!active) clearDrag();
   }
 

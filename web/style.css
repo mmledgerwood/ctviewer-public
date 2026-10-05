@@ -576,6 +576,7 @@ kbd {
 
 #obliqueCanvas { background: #000; cursor: grab; }
 #obliqueCanvas:active { cursor: grabbing; }
+.measure-dot-cursor { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Ccircle cx='6' cy='6' r='3' fill='%23ffffff' stroke='%23000000' stroke-width='1'/%3E%3C/svg%3E") 6 6, crosshair !important; }
 .popout-oblique-controls {
   flex: 0 0 auto;
   display: flex;
