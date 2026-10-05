@@ -257,6 +257,16 @@
         </div>
         <div id="uploadStatus"></div>
 
+        <div class="thickness-row">
+          <label for="sliceThickness">Slice thickness</label>
+          <input type="number" id="sliceThickness" min="0" step="0.1" placeholder="native" />
+          <span>mm</span>
+        </div>
+        <label class="chk thickness-fast"><input type="checkbox" id="fastPreview" /> Fast preview (load fewer slices)</label>
+        <p class="upload-privacy-note">
+          Slice thickness keeps every Nth slice to reach the thickness you enter; slices that aren't kept are never read, which is what makes loading fast.
+        </p>
+
         <p class="upload-privacy-note">
           Your files are never uploaded or sent anywhere — conversion happens entirely
           in your browser, on your own computer. Nothing leaves your machine.

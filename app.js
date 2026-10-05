@@ -449,16 +449,40 @@ function wireUploadUI() {
     if (files && files.length) handleUpload(files);
   });
 
+  // Reading files is the slow part (they can be on a cloud-synced drive), so
+  // slices we don't keep are never read at all: pick every Nth slice first,
+  // then hand only those to the converter. N comes from the slice thickness
+  // (target mm / native spacing measured from the first two slices) or, with
+  // no thickness set, is 2 when Fast preview is on.
   async function handleUpload(fileList) {
-    const files = Array.from(fileList);
+    const all = Array.from(fileList).sort((a, b) =>
+      (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, { numeric: true })
+    );
     btn.disabled = true;
-    status.textContent = `Converting ${files.length} file${files.length === 1 ? "" : "s"} in your browser…`;
-    showOverlay(true, "Converting DICOM series to volume…", 0);
+    status.textContent = `Preparing ${all.length} slices…`;
+    showOverlay(true, "Preparing DICOM series…", 0);
 
     try {
+      const targetMM = parseFloat(document.getElementById("sliceThickness").value);
+      const fast = document.getElementById("fastPreview").checked;
+      let stride = fast ? 2 : 1;
+      if (all.length >= 2 && (targetMM > 0 || fast)) {
+        const probe = new Dcm2niix();
+        await probe.init();
+        const probeOut = await probe.input(all.slice(0, 2)).run();
+        const probeNii = probeOut.find((f) => /\.nii$/i.test(f.name));
+        const nativeMM = probeNii
+          ? new DataView(await probeNii.arrayBuffer()).getFloat32(88, true)
+          : 0;
+        if (nativeMM > 0 && targetMM > 0) stride = Math.max(1, Math.round(targetMM / nativeMM));
+      }
+      const selected = all.filter((_, i) => i % stride === 0);
+      status.textContent = `Converting ${selected.length} of ${all.length} slices in your browser…`;
+      showOverlay(true, `Converting ${selected.length} of ${all.length} slices…`, 0);
+
       const dcm2niix = new Dcm2niix();
       await dcm2niix.init();
-      const converted = await dcm2niix.input(files).run();
+      const converted = await dcm2niix.input(selected).run();
       const niiFile = converted.find((f) => /\.nii(\.gz)?$/i.test(f.name));
       if (!niiFile) {
         throw new Error("No image volume in the conversion output — check that the folder contains a DICOM series.");
@@ -470,7 +494,7 @@ function wireUploadUI() {
       currentVolumeBlobUrl = URL.createObjectURL(niiFile);
       if (pollTimer) clearInterval(pollTimer);
       await finishLoad(
-        { label: "Uploaded scan", seriesDescription: `${files.length} files`, sliceCount: files.length },
+        { label: "Uploaded scan", seriesDescription: `${selected.length} of ${all.length} slices`, sliceCount: selected.length },
         currentVolumeBlobUrl
       );
       if (prevBlobUrl) URL.revokeObjectURL(prevBlobUrl);
