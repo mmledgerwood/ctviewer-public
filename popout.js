@@ -253,7 +253,15 @@ async function ensureRenderNv() {
 
 async function loadVolume(targetNv, state) {
   if (targetNv.volumes.length) targetNv.removeVolume(targetNv.volumes[0]);
-  await targetNv.loadVolumes([{ url: state.volumeUrl, name: "volume.nii.gz" }]);
+  // A blob: URL created in the opener can't be resolved from this window in
+  // browsers that partition blob storage by site (the opener runs embedded),
+  // so this window makes its own URL from the shared File instead.
+  const ownUrl = state.volumeFile ? URL.createObjectURL(state.volumeFile) : null;
+  try {
+    await targetNv.loadVolumes([{ url: ownUrl || state.volumeUrl, name: state.volumeFile ? state.volumeFile.name : "volume.nii.gz" }]);
+  } finally {
+    if (ownUrl) URL.revokeObjectURL(ownUrl);
+  }
   const dst = targetNv.volumes[0];
   dst.cal_min = state.calMin;
   dst.cal_max = state.calMax;
