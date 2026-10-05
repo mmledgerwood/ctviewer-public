@@ -892,7 +892,7 @@ export function createMeasureController(nv, opts = {}) {
     const addBtn = document.createElement("button");
     addBtn.type = "button";
     addBtn.textContent = "Add to table";
-    addBtn.addEventListener("click", () => { addToTable(m, false, false); closeContextMenu(); });
+    addBtn.addEventListener("click", () => { addMeasurementToTable(m); closeContextMenu(); });
 
     menuEl.append(delBtn, addBtn);
     document.body.appendChild(menuEl);
