@@ -21,12 +21,15 @@
 // local tool-picker UI here anymore.
 
 import { obliquePixelToMM, obliqueMMToPixel } from "./oblique-math.js";
+import { MULTI_TOOLS, catmullClosed } from "./measure-shared.js";
 
 export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
   const svg = document.getElementById("measureOverlayOblique");
   let mainActive = false;
   let mainTool = "line";
-  let drag = null; // { tool, planeKey, startPx, curPx, startMM, curMM }
+  let drag = null; // { tool, planeKey, startPx, curPx, startMM, curMM, pathPx }
+  let pressPx = null; // click-based tools (Spline/Angle): where the current press began
+  let hoverPx = null; // last pointer position over the canvas, internal pixels
   const CUSTOM_AREA_TOOLS = new Set(["rectangle", "ellipse", "circle"]);
 
   function setMeasureState(active, tool) {
@@ -88,9 +91,10 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
   // ---- Drag lifecycle — forwards to the main window's measure.js ----------
 
   function beginDrag(px, py) {
+    if (MULTI_TOOLS.has(mainTool)) { pressPx = [px, py]; return; }
     const params = getPlaneParams();
     const startMM = pixelToMM(px, py, params);
-    drag = { tool: mainTool, key: planeKey(params), startPx: [px, py], curPx: [px, py], startMM, curMM: startMM };
+    drag = { tool: mainTool, key: planeKey(params), startPx: [px, py], curPx: [px, py], startMM, curMM: startMM, pathPx: [[px, py]] };
     try { host.measureBeginOblique(startMM, drag.key); } catch { /* opener gone */ }
   }
 
@@ -105,6 +109,7 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
     if (!drag) return;
     const params = getPlaneParams();
     drag.curPx = [px, py];
+    drag.pathPx.push([px, py]);
     drag.curMM = pixelToMM(px, py, params);
     try { host.measureUpdateOblique(drag.curMM, currentCorners(params)); } catch { /* opener gone */ }
     renderOverlay();
@@ -115,7 +120,10 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
     const d = drag;
     drag = null;
     const moved = Math.hypot(d.curPx[0] - d.startPx[0], d.curPx[1] - d.startPx[1]);
-    if (moved < 3) {
+    const xs = d.pathPx.map((p) => p[0]), ys = d.pathPx.map((p) => p[1]);
+    const spread = Math.max(...xs) - Math.min(...xs) + (Math.max(...ys) - Math.min(...ys));
+    const isStroke = d.tool === "freehand" ? d.pathPx.length >= 3 && spread >= 6 : moved >= 3;
+    if (!isStroke) {
       try { host.measureSelectOblique(d.startMM, d.key); } catch { /* opener gone */ }
       renderOverlay();
       return;
@@ -157,11 +165,42 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
       updateDrag(...cssToInternal(e.clientX, e.clientY));
     }, true);
     window.addEventListener("mouseup", (e) => {
+      if (pressPx) {
+        const press = pressPx;
+        pressPx = null;
+        const [px, py] = cssToInternal(e.clientX, e.clientY);
+        if (Math.hypot(px - press[0], py - press[1]) < 3) {
+          const params = getPlaneParams();
+          try { host.measureClickOblique(pixelToMM(press[0], press[1], params), planeKey(params)); } catch { /* opener gone */ }
+        }
+        renderOverlay();
+        return;
+      }
       if (!drag) return;
       e.stopImmediatePropagation();
       finishDrag();
     }, true);
     window.addEventListener("blur", () => clearDrag());
+    canvas.addEventListener("mousemove", (e) => {
+      if (!mainActive || !MULTI_TOOLS.has(mainTool)) return;
+      hoverPx = cssToInternal(e.clientX, e.clientY);
+      renderOverlay();
+    });
+    canvas.addEventListener("mouseleave", () => {
+      hoverPx = null;
+      renderOverlay();
+    });
+    canvas.addEventListener("dblclick", () => {
+      if (!mainActive) return;
+      try { host.measureDblClickOblique(); } catch { /* opener gone */ }
+      renderOverlay();
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || !mainActive) return;
+      pressPx = null;
+      try { host.measureCancelOblique(); } catch { /* opener gone */ }
+      renderOverlay();
+    });
     canvas.addEventListener("contextmenu", (e) => {
       if (!mainActive) return;
       e.preventDefault();
@@ -186,6 +225,15 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
     try { shapes = host.getObliqueMeasurements(key) || []; } catch { /* opener gone */ }
     const parts = shapes.map((m) => shapeSvg(m, m.points.map((mm) => internalToCss(mmToPixel(mm, params)))));
     if (drag) parts.push(liveShapeSvg(params));
+    let progress = null;
+    try { progress = host.getObliqueInProgress(key); } catch { /* opener gone */ }
+    if (progress && progress.pts.length) {
+      const line = progress.pts.map((mm) => internalToCss(mmToPixel(mm, params)));
+      if (hoverPx) line.push(internalToCss(hoverPx));
+      if (line.length >= 2) {
+        parts.push(`<polyline class="meas-shape" points="${line.map(pt).join(" ")}" stroke="#4da3ff" fill="none"/>`);
+      }
+    }
     svg.innerHTML = parts.join("");
   }
 
@@ -193,6 +241,18 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
 
   function shapeSvg(m, pts) {
     const color = m.tool === "annotation" ? "#f59e0b" : "#fbbf24";
+    if (m.tool === "freehand" || m.tool === "spline") {
+      const poly = m.tool === "spline" ? catmullClosed(pts, 12) : pts;
+      const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+      const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+      return `<polygon class="meas-shape meas-fill" points="${poly.map(pt).join(" ")}" stroke="${color}" fill="${color}"/>` +
+        labelSvg(cx, cy - 6, m.value, color);
+    }
+    if (m.tool === "angle") {
+      const [a, b, c] = pts;
+      return `<polyline class="meas-shape" points="${pt(a)} ${pt(b)} ${pt(c)}" stroke="${color}" fill="none"/>` +
+        labelSvg(b[0] + 8, b[1] - 8, m.value, color);
+    }
     if (m.tool === "line") {
       const [a, b] = pts;
       return `<line class="meas-shape" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${color}"/>` +
@@ -234,6 +294,10 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
   }
 
   function liveShapeSvg(params) {
+    if (drag.tool === "freehand") {
+      const line = drag.pathPx.map((p) => internalToCss(p));
+      return line.length < 2 ? "" : `<polyline class="meas-shape" points="${line.map(pt).join(" ")}" stroke="#4da3ff" fill="none"/>`;
+    }
     const a = internalToCss(drag.startPx);
     const b = internalToCss(drag.curPx);
     const color = "#4da3ff";

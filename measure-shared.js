@@ -148,3 +148,82 @@ export function histogramsToCsv(measureTable) {
   });
   return lines.join("\r\n");
 }
+
+export const POLY_TOOLS = new Set(["freehand", "spline"]);
+export const MULTI_TOOLS = new Set(["spline", "angle"]);
+
+const sub = (a, b) => a.map((v, i) => v - b[i]);
+const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0);
+const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (a) => Math.hypot(...a) || 1;
+
+// Area of a planar closed polygon given as 3D points (mm).
+export function polygonAreaMM(pts) {
+  if (pts.length < 3) return 0;
+  const p0 = pts[0];
+  let acc = [0, 0, 0];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const c = cross3(sub(pts[i], p0), sub(pts[i + 1], p0));
+    acc = [acc[0] + c[0], acc[1] + c[1], acc[2] + c[2]];
+  }
+  return norm(acc) / 2;
+}
+
+// Angle at vertex b (degrees) between rays b->a and b->c.
+export function angleDeg(a, b, c) {
+  const u = sub(a, b), v = sub(c, b);
+  const cos = dot(u, v) / ((norm(u) * norm(v)) || 1);
+  return (Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI;
+}
+
+// Closed Catmull-Rom curve through the points, any dimension (2D screen or 3D mm).
+export function catmullClosed(pts, perSeg = 12) {
+  const n = pts.length;
+  if (n < 3) return pts.slice();
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    for (let s = 0; s < perSeg; s++) {
+      const t = s / perSeg, t2 = t * t, t3 = t2 * t;
+      out.push(p1.map((_, k) =>
+        0.5 * ((2 * p1[k]) + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 +
+          (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3)));
+    }
+  }
+  return out;
+}
+
+// Orthonormal in-plane basis for a planar set of 3D points.
+export function planeBasis(pts) {
+  const origin = pts[0];
+  const u = sub(pts[1], origin);
+  const un = u.map((v) => v / norm(u));
+  let best = [0, 0, 0], bestLen = 0;
+  for (const p of pts) {
+    const c = cross3(un, sub(p, origin));
+    const len = norm(c);
+    if (len > bestLen) { bestLen = len; best = c; }
+  }
+  const n = best.map((v) => v / norm(best));
+  const v = cross3(n, un);
+  return { origin, u: un, v };
+}
+
+export function toUV(basis, p) {
+  const d = sub(p, basis.origin);
+  return [dot(d, basis.u), dot(d, basis.v)];
+}
+
+export function fromUV(basis, x, y) {
+  return [0, 1, 2].map((k) => basis.origin[k] + basis.u[k] * x + basis.v[k] * y);
+}
+
+// Ray-casting point-in-polygon for a 2D polygon.
+export function pointInPolygon(p, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}

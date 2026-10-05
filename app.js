@@ -905,6 +905,9 @@ window.ctviewerPopoutHost = {
   measureUpdateOblique(mm, corners) { measureCtl.updateObliqueDraw(mm, corners); },
   measureFinishOblique(mm, corners) { measureCtl.finishObliqueDraw(mm, corners); },
   measureCancelOblique() { measureCtl.cancelObliqueDraw(); },
+  measureClickOblique(mm, planeKey) { measureCtl.clickObliqueMulti(mm, planeKey); },
+  measureDblClickOblique() { measureCtl.dblClickOblique(); },
+  getObliqueInProgress(planeKey) { return measureCtl.getObliqueInProgress(planeKey); },
   measureSelectOblique(mm, planeKey) {
     const m = measureCtl.hitTestOblique(mm, planeKey);
     if (m) measureCtl.selectOblique(m);
