@@ -33,13 +33,14 @@
 
 import { DRAG_MODE } from "https://unpkg.com/@niivue/niivue@0.69.0/dist/index.js";
 import {
-  AREA_TOOLS, histStats, histBinsFor, drawMiniHistogram,
-  distToSegment, pointInRect, pointInEllipse,
+  AREA_TOOLS, POLY_TOOLS, MULTI_TOOLS, histStats, histBinsFor, drawMiniHistogram,
+  distToSegment, pointInRect, pointInEllipse, pointInPolygon,
+  polygonAreaMM, angleDeg, catmullClosed, planeBasis, toUV, fromUV,
   tableToCsv, histogramsToCsv, downloadCsv,
 } from "./measure-shared.js";
 
-export const TOOLS = ["annotation", "line", "rectangle", "ellipse", "circle"];
-const CUSTOM_TOOLS = new Set(["rectangle", "ellipse", "circle", "annotation"]);
+export const TOOLS = ["annotation", "line", "rectangle", "ellipse", "circle", "freehand", "spline", "angle"];
+const CUSTOM_TOOLS = new Set(["rectangle", "ellipse", "circle", "annotation", "freehand", "spline", "angle"]);
 
 let nextId = 1;
 
@@ -59,11 +60,14 @@ export function createMeasureController(nv, opts = {}) {
   // observer path (line, which doesn't block NiiVue's own handling).
   let drag = null; // { tool, axCorSag, sliceFrac, startFrac, curFrac, startPx, curPx }
   let nativeJustCompleted = false;
+  let pressAt = null; // { px, py, tile } while a click-based tool's mouse is down
+  let multi = null; // main-panel in-progress Spline/Angle: { tool, axCorSag, sliceFrac, pts, curFrac }
 
   // Live-drag tracking relayed from the oblique pop-out — entirely separate
   // from `drag` above since it's driven by calls from another window's JS,
   // not local mouse events.
-  let obliqueDrag = null; // { tool, planeKey, startMM, curMM, corners }
+  let obliqueDrag = null; // { tool, planeKey, startMM, curMM, corners, pts }
+  let obliqueMulti = null; // pop-out in-progress Spline/Angle: { tool, planeKey, pts }
 
   const svg = document.getElementById("measureOverlay");
   const liveSection = document.getElementById("measureLiveSection");
@@ -125,7 +129,7 @@ export function createMeasureController(nv, opts = {}) {
   // panels store frac; the oblique pop-out has no frac concept of its own
   // and stores mm directly — see the file-level comment).
   function mmPoint(m, i) {
-    return m.surface === "oblique" ? m.points[i] : nv.frac2mm(m.points[i]);
+    return m.surface === "oblique" ? m.points[i] : nv.frac2mm(m.points[i]).slice(0, 3);
   }
 
   function rawDist(a, b) {
@@ -154,7 +158,8 @@ export function createMeasureController(nv, opts = {}) {
 
   function formatValue(record) {
     if (record.tool === "annotation") return "—";
-    if (AREA_TOOLS.has(record.tool)) return `${record.valueMM.toFixed(1)} mm²`;
+    if (record.tool === "angle") return `${record.valueMM.toFixed(1)}°`;
+    if (AREA_TOOLS.has(record.tool) || POLY_TOOLS.has(record.tool)) return `${record.valueMM.toFixed(1)} mm²`;
     return `${record.valueMM.toFixed(1)} mm`;
   }
 
@@ -172,6 +177,9 @@ export function createMeasureController(nv, opts = {}) {
       return `Line: ${formatValue(m)}\n` +
         `Start: ${a[0].toFixed(1)}, ${a[1].toFixed(1)}, ${a[2].toFixed(1)} mm\n` +
         `End: ${b[0].toFixed(1)}, ${b[1].toFixed(1)}, ${b[2].toFixed(1)} mm`;
+    }
+    if (m.tool === "angle" || POLY_TOOLS.has(m.tool)) {
+      return `${toolLabel(m.tool)}: ${formatValue(m)}\nPoints: ${m.points.length}`;
     }
     const a = mmPoint(m, 0);
     const b = mmPoint(m, 2);
@@ -191,6 +199,8 @@ export function createMeasureController(nv, opts = {}) {
       curPx: [px, py],
       startFrac,
       curFrac: startFrac,
+      pts: [startFrac],
+      ptsPx: [[px, py]],
     };
     updateLiveBox();
   }
@@ -199,6 +209,13 @@ export function createMeasureController(nv, opts = {}) {
     if (!drag) return;
     drag.curPx = [px, py];
     drag.curFrac = nv.canvasPos2frac([px, py]);
+    if (drag.tool === "freehand") {
+      const last = drag.ptsPx[drag.ptsPx.length - 1];
+      if (Math.hypot(px - last[0], py - last[1]) >= 2) {
+        drag.ptsPx.push([px, py]);
+        drag.pts.push(drag.curFrac);
+      }
+    }
     updateLiveBox();
   }
 
@@ -206,6 +223,15 @@ export function createMeasureController(nv, opts = {}) {
     if (!drag) return;
     const d = drag;
     drag = null;
+    if (d.tool === "freehand" && isFreehandStroke(d.ptsPx)) {
+      const rec = {
+        id: nextId++, surface: "main", tool: "freehand", axCorSag: d.axCorSag,
+        sliceFrac: d.sliceFrac, points: d.pts, valueMM: 0, label: null,
+      };
+      rec.valueMM = polygonAreaMM(outlineMM(rec));
+      commitMain(rec);
+      return;
+    }
     const moved = Math.hypot(d.curPx[0] - d.startPx[0], d.curPx[1] - d.startPx[1]);
     if (moved < 3) {
       // Not a real drag — treat as a click: select whatever shape is there.
@@ -266,9 +292,55 @@ export function createMeasureController(nv, opts = {}) {
     selectMeasurement(rec);
   }
 
+  // A freehand stroke needs several points spread over a few pixels; a plain
+  // click (even one with a tiny jitter) should keep working as select.
+  function isFreehandStroke(ptsPx) {
+    if (ptsPx.length < 3) return false;
+    const xs = ptsPx.map((p) => p[0]), ys = ptsPx.map((p) => p[1]);
+    return Math.max(...xs) - Math.min(...xs) + (Math.max(...ys) - Math.min(...ys)) >= 6;
+  }
+
+  function commitMain(rec) {
+    measurements.push(rec);
+    addMeasurementToTable(rec);
+    selectMeasurement(rec);
+  }
+
+  function sameFrac(a, b) {
+    return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 1e-4;
+  }
+
+  function addMultiPoint(tile, px, py) {
+    const frac = nv.canvasPos2frac([px, py]);
+    if (multi && (multi.axCorSag !== tile.axCorSag || Math.abs(multi.sliceFrac - tile.sliceFrac) > SLICE_EPS)) {
+      multi = null;
+    }
+    if (!multi) multi = { tool: currentTool, axCorSag: tile.axCorSag, sliceFrac: tile.sliceFrac, pts: [], curFrac: frac };
+    multi.pts.push(frac);
+    multi.curFrac = frac;
+    if (multi.tool === "angle" && multi.pts.length === 3) finishMulti();
+  }
+
+  function finishMulti() {
+    if (!multi) return;
+    const d = multi;
+    multi = null;
+    const pts = [];
+    for (const p of d.pts) if (!pts.length || !sameFrac(pts[pts.length - 1], p)) pts.push(p);
+    if (pts.length < 3) { refreshBox(); return; }
+    const rec = {
+      id: nextId++, surface: "main", tool: d.tool, axCorSag: d.axCorSag,
+      sliceFrac: d.sliceFrac, points: pts, valueMM: 0, label: null,
+    };
+    rec.valueMM = d.tool === "angle" ? angleDeg(...mmPts(rec)) : polygonAreaMM(outlineMM(rec));
+    commitMain(rec);
+  }
+
   function clearDrag() {
-    if (!drag) return;
     drag = null;
+    multi = null;
+    pressAt = null;
+    obliqueMulti = null;
     refreshBox();
   }
 
@@ -379,8 +451,42 @@ export function createMeasureController(nv, opts = {}) {
     return out;
   }
 
+  function mmPts(m) {
+    return m.points.map((_, i) => mmPoint(m, i));
+  }
+
+  function outlineMM(m) {
+    const pts = mmPts(m);
+    return m.tool === "spline" ? catmullClosed(pts, 12) : pts;
+  }
+
+  function samplePolyMM(outline) {
+    if (outline.length < 3) return [];
+    const basis = planeBasis(outline);
+    const poly = outline.map((p) => toUV(basis, p));
+    const xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    const y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const STEPS = 40;
+    const out = [];
+    for (let i = 0; i <= STEPS; i++) {
+      for (let j = 0; j <= STEPS; j++) {
+        const x = x0 + ((x1 - x0) * i) / STEPS, y = y0 + ((y1 - y0) * j) / STEPS;
+        if (!pointInPolygon([x, y], poly)) continue;
+        const v = sampleAtMM(fromUV(basis, x, y));
+        if (v != null) out.push(v);
+      }
+    }
+    return out;
+  }
+
   function sampleForRecord(m) {
     if (!nv.volumes.length) return [];
+    if (POLY_TOOLS.has(m.tool)) return samplePolyMM(outlineMM(m));
+    if (m.tool === "angle") {
+      const p = mmPts(m);
+      return [...sampleLineMM(p[0], p[1], 24), ...sampleLineMM(p[1], p[2], 24)];
+    }
     if (m.surface === "oblique") {
       if (m.tool === "line" || m.tool === "annotation") return sampleLineMM(m.points[0], m.points[1], 48);
       if (AREA_TOOLS.has(m.tool)) return sampleBoxMM(m.points);
@@ -408,6 +514,8 @@ export function createMeasureController(nv, opts = {}) {
       }
       const corners = bboxCorners(drag.axCorSag, x0, y0, x1, y1);
       samples = sampleBox(corners);
+    } else if (drag.tool === "freehand") {
+      samples = samplePolyMM(outlineMM({ surface: "main", tool: "freehand", points: drag.pts }));
     } else if (drag.tool === "line" || drag.tool === "annotation") {
       samples = sampleLine(drag.startFrac, drag.curFrac, 48);
     }
@@ -500,20 +608,50 @@ export function createMeasureController(nv, opts = {}) {
       if (!tile) return;
       e.stopImmediatePropagation();
       e.preventDefault();
+      if (MULTI_TOOLS.has(currentTool)) {
+        pressAt = { px, py, tile };
+        return;
+      }
       beginDrag(tile, px, py);
     }, true);
     window.addEventListener("mousemove", (e) => {
-      if (!drag || !isCustomDrawTool()) return;
+      if (!isCustomDrawTool()) return;
+      if (MULTI_TOOLS.has(currentTool)) {
+        if (multi) {
+          const [px, py] = canvasPos(e);
+          multi.curFrac = nv.canvasPos2frac([px, py]);
+        }
+        return;
+      }
+      if (!drag) return;
       e.stopImmediatePropagation();
       const [px, py] = canvasPos(e);
       updateDrag(px, py);
     }, true);
     window.addEventListener("mouseup", (e) => {
+      if (pressAt) {
+        const press = pressAt;
+        pressAt = null;
+        if (!isCustomDrawTool()) return;
+        const [px, py] = canvasPos(e);
+        if (Math.hypot(px - press.px, py - press.py) < 3) addMultiPoint(press.tile, press.px, press.py);
+        return;
+      }
       if (!drag || !isCustomDrawTool()) return;
       e.stopImmediatePropagation();
       finishDrag();
     }, true);
     window.addEventListener("blur", () => clearDrag());
+    nv.canvas.addEventListener("dblclick", () => {
+      if (multi && multi.tool === "spline") finishMulti();
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        multi = null;
+        pressAt = null;
+        clearDrag();
+      }
+    });
   }
 
   // ---- Oblique pop-out relay (mm-space, no NiiVue-native tile/drag) -------
@@ -531,13 +669,17 @@ export function createMeasureController(nv, opts = {}) {
 
   function beginObliqueDraw(mm, planeKey) {
     if (!active) return;
-    obliqueDrag = { tool: currentTool, planeKey, startMM: mm, curMM: mm, corners: null };
+    obliqueDrag = { tool: currentTool, planeKey, startMM: mm, curMM: mm, corners: null, pts: [mm] };
     updateObliqueLiveBox();
   }
 
   function updateObliqueDraw(mm, corners) {
     if (!obliqueDrag) return;
     obliqueDrag.curMM = mm;
+    if (obliqueDrag.tool === "freehand") {
+      const last = obliqueDrag.pts[obliqueDrag.pts.length - 1];
+      if (rawDist(last, mm) >= 0.3) obliqueDrag.pts.push(mm);
+    }
     obliqueDrag.corners = corners || null;
     updateObliqueLiveBox();
   }
@@ -566,6 +708,15 @@ export function createMeasureController(nv, opts = {}) {
       return;
     }
 
+    if (d.tool === "freehand") {
+      const pts = d.pts.concat([mm]);
+      if (pts.length < 3) { refreshBox(); return; }
+      const rec = { id: nextId++, surface: "oblique", tool: "freehand", planeKey: d.planeKey, points: pts, valueMM: 0, label: null };
+      rec.valueMM = polygonAreaMM(pts);
+      commitOblique(rec);
+      return;
+    }
+
     if (d.tool === "line") {
       const rec = { id: nextId++, surface: "oblique", tool: "line", planeKey: d.planeKey, points: [d.startMM, mm], valueMM: rawDist(d.startMM, mm), label: null };
       measurements.push(rec);
@@ -589,9 +740,44 @@ export function createMeasureController(nv, opts = {}) {
   }
 
   function cancelObliqueDraw() {
-    if (!obliqueDrag) return;
     obliqueDrag = null;
+    obliqueMulti = null;
     refreshBox();
+  }
+
+  function commitOblique(rec) {
+    measurements.push(rec);
+    addMeasurementToTable(rec);
+    selectMeasurement(rec);
+    if (onObliqueChange) onObliqueChange();
+  }
+
+  function clickObliqueMulti(mm, planeKey) {
+    if (!active) return;
+    if (obliqueMulti && !samePlaneKey(obliqueMulti.planeKey, planeKey)) obliqueMulti = null;
+    if (!obliqueMulti) obliqueMulti = { tool: currentTool, planeKey, pts: [] };
+    const last = obliqueMulti.pts[obliqueMulti.pts.length - 1];
+    if (!last || rawDist(last, mm) > 1e-3) obliqueMulti.pts.push(mm);
+    if (obliqueMulti.tool === "angle" && obliqueMulti.pts.length === 3) finishObliqueMulti();
+  }
+
+  function finishObliqueMulti() {
+    if (!obliqueMulti) return;
+    const d = obliqueMulti;
+    obliqueMulti = null;
+    if (d.pts.length < 3) { refreshBox(); return; }
+    const rec = { id: nextId++, surface: "oblique", tool: d.tool, planeKey: d.planeKey, points: d.pts, valueMM: 0, label: null };
+    rec.valueMM = d.tool === "angle" ? angleDeg(...d.pts) : polygonAreaMM(outlineMM(rec));
+    commitOblique(rec);
+  }
+
+  function dblClickOblique() {
+    if (obliqueMulti && obliqueMulti.tool === "spline") finishObliqueMulti();
+  }
+
+  function getObliqueInProgress(planeKey) {
+    if (!obliqueMulti || !samePlaneKey(obliqueMulti.planeKey, planeKey)) return null;
+    return { tool: obliqueMulti.tool, pts: obliqueMulti.pts };
   }
 
   // Point-in-shape tests projected onto the record's own corner basis
@@ -635,6 +821,13 @@ export function createMeasureController(nv, opts = {}) {
         const [pu, pv] = projectToCorners(mm, m.points);
         const nx = pu * 2 - 1, ny = pv * 2 - 1;
         if (nx * nx + ny * ny <= 1) return m;
+      } else if (m.tool === "freehand" || m.tool === "spline") {
+        const outline = outlineMM(m);
+        const basis = planeBasis(outline);
+        if (pointInPolygon(toUV(basis, mm), outline.map((p) => toUV(basis, p)))) return m;
+      } else if (m.tool === "angle") {
+        const [a, b, c] = m.points;
+        if (distToSegment3D(mm, a, b) <= OBLIQUE_HIT_MM || distToSegment3D(mm, b, c) <= OBLIQUE_HIT_MM) return m;
       }
     }
     return null;
@@ -685,6 +878,7 @@ export function createMeasureController(nv, opts = {}) {
     if (drag && CUSTOM_TOOLS.has(drag.tool)) {
       parts.push(liveShapeSvg());
     }
+    if (multi) parts.push(liveMultiSvg());
     svg.innerHTML = parts.join("");
   }
 
@@ -716,6 +910,18 @@ export function createMeasureController(nv, opts = {}) {
       return `<ellipse class="meas-shape meas-fill" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" stroke="${color}" fill="${color}"/>` +
         labelSvg(cx, cy - ry - 6, formatValue(m), color);
     }
+    if (m.tool === "freehand" || m.tool === "spline") {
+      const poly = m.tool === "spline" ? catmullClosed(pts, 12) : pts;
+      const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+      const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+      return `<polygon class="meas-shape meas-fill" points="${poly.map(pt).join(" ")}" stroke="${color}" fill="${color}"/>` +
+        labelSvg(cx, cy - 6, formatValue(m), color);
+    }
+    if (m.tool === "angle") {
+      const [a, b, c] = pts;
+      return `<polyline class="meas-shape" points="${pt(a)} ${pt(b)} ${pt(c)}" stroke="${color}" fill="none"/>` +
+        labelSvg(b[0] + 8, b[1] - 8, formatValue(m), color);
+    }
     return "";
   }
 
@@ -733,8 +939,28 @@ export function createMeasureController(nv, opts = {}) {
     return `<text class="meas-label" x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="${color}" text-anchor="middle">${esc}</text>`;
   }
 
+  function liveMultiSvg() {
+    const dpr = nv.uiData.dpr || 1;
+    const toScreen = (f) => {
+      const r = nv.frac2canvasPosWithTile(f, multi.axCorSag);
+      return r ? [r.pos[0] / dpr, r.pos[1] / dpr] : null;
+    };
+    const line = multi.pts.map(toScreen).filter(Boolean);
+    const cur = toScreen(multi.curFrac);
+    if (cur) line.push(cur);
+    if (line.length < 2) return "";
+    return `<polyline class="meas-shape" points="${line.map(pt).join(" ")}" stroke="#4da3ff" fill="none"/>`;
+  }
+
   function liveShapeSvg() {
     const dpr = nv.uiData.dpr || 1;
+    if (drag.tool === "freehand") {
+      const line = drag.pts.map((f) => {
+        const r = nv.frac2canvasPosWithTile(f, drag.axCorSag);
+        return r ? [r.pos[0] / dpr, r.pos[1] / dpr] : null;
+      }).filter(Boolean);
+      return line.length < 2 ? "" : `<polyline class="meas-shape" points="${line.map(pt).join(" ")}" stroke="#4da3ff" fill="none"/>`;
+    }
     const r1 = nv.frac2canvasPosWithTile(drag.startFrac, drag.axCorSag);
     const r2 = nv.frac2canvasPosWithTile(drag.curFrac, drag.axCorSag);
     if (!r1 || !r2) return "";
@@ -769,6 +995,11 @@ export function createMeasureController(nv, opts = {}) {
       if (!pts) continue;
       if (m.tool === "line" || m.tool === "annotation") {
         if (distToSegment([px, py], pts[0], pts[1]) <= 6) return m;
+      } else if (m.tool === "freehand" || m.tool === "spline") {
+        const poly = m.tool === "spline" ? catmullClosed(pts, 12) : pts;
+        if (pointInPolygon([px, py], poly)) return m;
+      } else if (m.tool === "angle") {
+        if (distToSegment([px, py], pts[0], pts[1]) <= 6 || distToSegment([px, py], pts[1], pts[2]) <= 6) return m;
       } else if (m.tool === "rectangle") {
         const [tl, , br] = pts;
         const x = Math.min(tl[0], br[0]), y = Math.min(tl[1], br[1]);
@@ -965,6 +1196,9 @@ export function createMeasureController(nv, opts = {}) {
     updateObliqueDraw,
     finishObliqueDraw,
     cancelObliqueDraw,
+    clickObliqueMulti,
+    dblClickOblique,
+    getObliqueInProgress,
     hitTestOblique,
     selectOblique,
     getObliqueMeasurements,
