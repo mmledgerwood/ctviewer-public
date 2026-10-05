@@ -179,7 +179,7 @@ button.active, button.preset.active {
   background: var(--panel);
   border-left: 1px solid var(--border);
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 10px 12px 90px;
 }
 
 #rightPanel h3 {
