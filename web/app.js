@@ -18,6 +18,7 @@ let currentStudyId = null;
 // for it, just a local blob: URL. The two are mutually exclusive; whichever
 // load path ran most recently clears the other (see selectStudy/finishLoad).
 let currentVolumeBlobUrl = null;
+let currentVolumeFile = null;
 let pollTimer = null;
 let measureCtl = null;
 
@@ -490,6 +491,7 @@ function wireUploadUI() {
 
       status.textContent = "";
       currentStudyId = null;
+      currentVolumeFile = niiFile;
       const prevBlobUrl = currentVolumeBlobUrl;
       currentVolumeBlobUrl = URL.createObjectURL(niiFile);
       if (pollTimer) clearInterval(pollTimer);
@@ -863,7 +865,8 @@ window.ctviewerPopoutHost = {
     if (!nv.volumes.length) return null;
     return {
       kind,
-      volumeUrl: currentVolumeUrl(),
+      volumeFile: currentVolumeFile,
+      volumeUrl: currentVolumeFile ? null : currentVolumeUrl(),
       calMin: nv.volumes[0].cal_min,
       calMax: nv.volumes[0].cal_max,
       opacity: nv.volumes[0].opacity,
@@ -1543,6 +1546,7 @@ async function selectStudy(study) {
   if (pollTimer) clearInterval(pollTimer);
   currentStudyId = study.id;
   if (currentVolumeBlobUrl) { URL.revokeObjectURL(currentVolumeBlobUrl); currentVolumeBlobUrl = null; }
+  currentVolumeFile = null;
   const { qs } = loadParams();
 
   document.querySelectorAll(".study-btn").forEach((b) =>
