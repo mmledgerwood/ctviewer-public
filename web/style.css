@@ -790,3 +790,31 @@ kbd {
   stroke-linejoin: round;
 }
 .popout-oblique-controls input[type="range"] { flex: 1 1 auto; }
+
+#viewport.large-layout #gl { width: calc(100% - 230px) !important; }
+#thumbColumn { display: none; }
+#viewport.large-layout #thumbColumn {
+  display: flex; flex-direction: column; gap: 8px; padding: 8px; box-sizing: border-box;
+  position: absolute; top: 0; right: 0; bottom: 0; width: 230px; background: #0b0d10; z-index: 3;
+}
+.thumb-card { position: relative; flex: 1 1 0; min-height: 0; border: 1px solid #2a2f38; border-radius: 6px; overflow: hidden; cursor: grab; background: #000; }
+.thumb-card canvas { position: absolute; top: 22px; left: 0; width: 100% !important; height: calc(100% - 22px) !important; display: block; }
+.thumb-handle { position: absolute; top: 0; left: 0; right: 0; height: 22px; z-index: 2; padding: 4px 8px; box-sizing: border-box; background: rgba(20,23,28,.92); color: #e5e7eb; font-size: 11px; cursor: grab; user-select: none; }
+.thumb-label { position: absolute; left: 6px; top: 6px; z-index: 2; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(20,23,28,.8); color: #e5e7eb; pointer-events: none; }
+
+.views-menu { min-width: 230px; padding: 6px; }
+.views-menu .views-item { display:flex; align-items:center; gap:10px; width:100%; background:none; border:0; color:var(--text); padding:7px 8px; border-radius:6px; font:inherit; cursor:pointer; text-align:left; }
+.views-menu .views-item:hover, .views-menu .views-item.active { background: var(--panel-2); }
+.views-menu .views-item svg.view-icon { width:20px; height:20px; flex:0 0 auto; }
+.views-menu .views-parent { justify-content: flex-start; }
+.views-menu .views-chev { margin-left:auto; opacity:.7; }
+.views-menu .views-row { display:flex; align-items:center; }
+.views-menu .views-row .views-item { flex:1; }
+.views-menu .views-row .view-popout-btn { background:none; border:0; color:var(--muted); cursor:pointer; padding:4px; }
+.views-menu .views-row .view-popout-btn svg { width:14px; height:14px; }
+.views-submenu { margin: 2px 0 2px 14px; padding-left: 8px; border-left: 1px solid var(--border); }
+
+.views-submenu.hidden { display: none; }
+
+.thumb-ghost { position: fixed; z-index: 50; pointer-events: none; padding: 4px 10px; border-radius: 6px; background: #1b1f26; border: 1px solid #4da3ff; color: #e5e7eb; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+#viewport.drop-target { outline: 2px dashed #4da3ff; outline-offset: -6px; }

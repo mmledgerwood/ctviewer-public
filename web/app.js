@@ -153,6 +153,7 @@ async function init() {
   wirePopoutWindow();
   wireObliqueDropdown();
   panelOverlayLoop();
+  setLayout("large");
 }
 
 function wireUI() {
@@ -334,7 +335,8 @@ function resetContrast() {
 
 function resetEverything() {
   pushUndo();
-  setView("multi");
+  setView("render");
+  setLayout("large");
   resetPanZoom();
   nv.setRenderAzimuthElevation(110, 10);
   setMode("crosshair");
@@ -418,6 +420,26 @@ function wireFolderUI() {
   );
 }
 
+// Reads Patient's Name (0010,0010) from the DICOM header; the converter's sidecar
+// doesn't carry it. Looks for the explicit-VR "PN" element near the top of the
+// file (where the patient module sits), so it doesn't depend on walking every
+// preceding sequence.
+async function readPatientName(file) {
+  try {
+    const bytes = new Uint8Array(await file.slice(0, 1 << 20).arrayBuffer());
+    const dv = new DataView(bytes.buffer);
+    for (let i = 0; i + 8 <= bytes.length; i++) {
+      if (bytes[i] === 0x10 && bytes[i + 1] === 0x00 && bytes[i + 2] === 0x10 && bytes[i + 3] === 0x00 &&
+          bytes[i + 4] === 0x50 && bytes[i + 5] === 0x4e) {
+        const len = dv.getUint16(i + 6, true);
+        if (i + 8 + len > bytes.length) return "";
+        return new TextDecoder().decode(bytes.subarray(i + 8, i + 8 + len)).replace(/\0/g, "").trim();
+      }
+    }
+  } catch { /* unreadable header */ }
+  return "";
+}
+
 // ---- public.html's upload flow (PUBLIC_MODE) -----------------------------
 // Replaces local folder browsing: visitor picks their own DICOM files/folder,
 // which are converted to a NIfTI volume entirely in the browser (dcm2niix
@@ -489,6 +511,14 @@ function wireUploadUI() {
         throw new Error("No image volume in the conversion output — check that the folder contains a DICOM series.");
       }
 
+      const jsonFile = converted.find((f) => /\.json$/i.test(f.name));
+      let seriesName = "";
+      if (jsonFile) {
+        try { seriesName = JSON.parse(await jsonFile.text()).SeriesDescription || ""; } catch { /* no sidecar */ }
+      }
+      const studyName = (all[0] && all[0].webkitRelativePath || "").split("/")[0] || "Uploaded scan";
+      const patientName = await readPatientName(all[0]);
+
       status.textContent = "";
       currentStudyId = null;
       currentVolumeFile = niiFile;
@@ -496,7 +526,7 @@ function wireUploadUI() {
       currentVolumeBlobUrl = URL.createObjectURL(niiFile);
       if (pollTimer) clearInterval(pollTimer);
       await finishLoad(
-        { label: "Uploaded scan", seriesDescription: `${selected.length} of ${all.length} slices`, sliceCount: selected.length },
+        { label: studyName, seriesDescription: seriesName || `${selected.length} of ${all.length} slices`, sliceCount: selected.length, patientName },
         currentVolumeBlobUrl
       );
       if (prevBlobUrl) URL.revokeObjectURL(prevBlobUrl);
@@ -1293,9 +1323,16 @@ function renderTileSize() {
 
 function wireViewUI() {
   const viewsMenu = document.getElementById("viewsMenu");
-  document.querySelectorAll("#viewsMenu [data-view]").forEach((b) =>
-    b.addEventListener("click", () => { pushUndo(); setView(b.dataset.view); })
+  document.querySelectorAll("#viewsMenu [data-layout-choice]").forEach((b) =>
+    b.addEventListener("click", () => { viewsMenu.classList.add("hidden"); setLayout(b.dataset.layoutChoice); })
   );
+  document.querySelectorAll("#viewsMenu [data-one-view]").forEach((b) =>
+    b.addEventListener("click", () => { viewsMenu.classList.add("hidden"); setLayout("single", b.dataset.oneView); })
+  );
+  document.getElementById("onePanelToggle").addEventListener("click", (e) => {
+    e.stopPropagation();
+    document.getElementById("onePanelMenu").classList.toggle("hidden");
+  });
   document.querySelectorAll("#viewsMenu [data-popout]").forEach((b) =>
     b.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1317,8 +1354,10 @@ function wireViewUI() {
 
   window.addEventListener("keydown", (e) => {
     if (e.target.matches("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
-    const map = { 1: "axial", 2: "sagittal", 3: "coronal", 4: "render", 5: "multi" };
-    if (map[e.key]) setView(map[e.key]);
+    const map = { 1: "axial", 2: "sagittal", 3: "coronal", 4: "render" };
+    if (map[e.key]) setLayout("single", map[e.key]);
+    else if (e.key === "5") setLayout("grid");
+    else if (e.key === "6") setLayout("large");
   });
 
   const canvas = nv.canvas;
@@ -1603,8 +1642,9 @@ async function finishLoad(study, url) {
 
   document.getElementById("studyLabel").textContent = `${study.label} — ${study.seriesDescription} (${study.sliceCount} slices)`;
   document.getElementById("seriesInfo").textContent =
-    `Study: ${study.label}\nSeries: ${study.seriesDescription}\nSlices: ${study.sliceCount}\nVoxel size: ${voxelSizeText()}`;
+    `${study.patientName ? `Patient: ${study.patientName}\n` : ""}Study: ${study.label}\nSeries: ${study.seriesDescription}\nSlices: ${study.sliceCount}\nVoxel size: ${voxelSizeText()}`;
   measureCtl.resetAll();
+  if (layoutMode === "large") syncPoolVolumes();
 
   if (popNv && !document.getElementById("popoutWindow").classList.contains("hidden")) {
     await refreshPopoutVolume();
@@ -1629,3 +1669,185 @@ function showOverlay(visible, text, pct) {
 }
 
 init();
+
+// ---- Large view + side column (preview) ----
+const POOL_VIEWS = ["axial", "sagittal", "coronal", "render"];
+const POOL_LABELS = { axial: "Axial", sagittal: "Sagittal", coronal: "Coronal", render: "3D Rendering" };
+let layoutMode = "grid";
+const pool = {};
+
+async function ensurePool() {
+  for (const key of POOL_VIEWS) {
+    if (pool[key]) continue;
+    const holder = document.createElement("div");
+    holder.className = "thumb-card";
+    holder.dataset.view = key;
+    const handle = document.createElement("div");
+    handle.className = "thumb-handle";
+    handle.textContent = `⠿ ${POOL_LABELS[key]}`;
+    handle.title = "Drag this bar onto the large view";
+    handle.addEventListener("pointerdown", (e) => startViewDrag(e, key, handle));
+    holder.appendChild(handle);
+    const canvas = document.createElement("canvas");
+    holder.appendChild(canvas);
+    let press = null;
+    canvas.addEventListener("mousedown", (e) => { if (e.button === 0) press = { x: e.clientX, y: e.clientY }; });
+    canvas.addEventListener("mouseup", (e) => {
+      if (!press || e.button !== 0) return;
+      const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y);
+      press = null;
+      if (moved >= 4) return;
+      const r = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const frac = pool[key].inst.canvasPos2frac([(e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr]);
+      if (!frac || frac.some((v) => Number.isNaN(v))) return;
+      pool[key].inst.scene.crosshairPos = Float32Array.from(frac);
+      pool[key].inst.drawScene();
+    });
+    document.getElementById("thumbPool").appendChild(holder);
+    const inst = new Niivue({ isColorbar: false, backColor: [0, 0, 0, 1], isOrientCube: false, show3Dcrosshair: true });
+    await inst.attachToCanvas(canvas);
+    inst.setSliceType(VIEW_TYPES[key]);
+    inst.opts.isRadiologicalConvention = true;
+    pool[key] = { inst, holder, url: null };
+  }
+}
+
+async function syncPoolVolumes() {
+  const url = currentVolumeBlobUrl;
+  if (!url || !nv.volumes.length) return;
+  await ensurePool();
+  for (const key of POOL_VIEWS) {
+    const entry = pool[key];
+    if (entry.url === url) continue;
+    if (entry.inst.volumes.length) entry.inst.removeVolume(entry.inst.volumes[0]);
+    await entry.inst.loadVolumes([{ url, name: "volume.nii" }]);
+    entry.url = url;
+  }
+  layoutColumn();
+}
+
+function layoutColumn() {
+  if (!pool.axial) return;
+  const col = document.getElementById("thumbColumn");
+  const pl = document.getElementById("thumbPool");
+  for (const key of POOL_VIEWS) {
+    const entry = pool[key];
+    if (!entry) continue;
+    if (layoutMode === "large" && key !== currentView) col.appendChild(entry.holder);
+    else pl.appendChild(entry.holder);
+  }
+  for (const key of POOL_VIEWS) {
+    const entry = pool[key];
+    if (!entry || !entry.holder.isConnected || entry.holder.parentElement !== col) continue;
+    const c = entry.inst.canvas;
+    const dpr = window.devicePixelRatio || 1;
+    c.width = Math.max(1, Math.round(c.clientWidth * dpr));
+    c.height = Math.max(1, Math.round(c.clientHeight * dpr));
+    entry.inst.drawScene();
+  }
+  window.dispatchEvent(new Event("resize"));
+}
+
+function swapMain(key) {
+  if (!POOL_VIEWS.includes(key) || key === currentView) return;
+  setView(key);
+  layoutColumn();
+}
+
+function setLayout(mode, view) {
+  layoutMode = mode;
+  document.getElementById("viewport").classList.toggle("large-layout", mode === "large");
+  if (mode === "grid") {
+    setView("multi");
+  } else {
+    if (view) setView(view);
+    else if (!POOL_VIEWS.includes(currentView)) setView("render");
+  }
+  document.querySelectorAll("#viewsMenu [data-layout-choice]").forEach((b) =>
+    b.classList.toggle("active", b.dataset.layoutChoice === mode)
+  );
+  if (mode === "large") syncPoolVolumes();
+  layoutColumn();
+  window.dispatchEvent(new Event("resize"));
+  nv.drawScene();
+}
+
+const viewportEl = document.getElementById("viewport");
+viewportEl.addEventListener("dragover", (e) => { if (layoutMode === "large") e.preventDefault(); });
+viewportEl.addEventListener("drop", (e) => {
+  if (layoutMode !== "large") return;
+  const key = e.dataTransfer.getData("text/plain");
+  if (!POOL_VIEWS.includes(key)) return;
+  e.preventDefault();
+  swapMain(key);
+});
+
+// Keeps the large view and the column views on one crosshair: whichever view
+// was clicked most recently sets the shared position for all of them.
+let lastCrosshair = "";
+function crosshairKey(arr) { return Array.from(arr).join(","); }
+function thumbLoop() {
+  if (layoutMode === "large" && nv.scene && nv.scene.crosshairPos) {
+    let source = null;
+    for (const key of POOL_VIEWS) {
+      const entry = pool[key];
+      if (!entry || !entry.url || key === currentView || !entry.holder.isConnected) continue;
+      const c = crosshairKey(entry.inst.scene.crosshairPos);
+      if (c !== lastCrosshair) { source = entry.inst; break; }
+    }
+    if (source) {
+      nv.scene.crosshairPos = Float32Array.from(source.scene.crosshairPos);
+    }
+    const mainKey = crosshairKey(nv.scene.crosshairPos);
+    if (source || mainKey !== lastCrosshair) {
+      lastCrosshair = mainKey;
+      for (const key of POOL_VIEWS) {
+        const entry = pool[key];
+        if (entry && entry.url && key !== currentView) {
+          entry.inst.scene.crosshairPos = Float32Array.from(nv.scene.crosshairPos);
+          entry.inst.drawScene();
+        }
+      }
+      nv.drawScene();
+    }
+  }
+  requestAnimationFrame(thumbLoop);
+}
+requestAnimationFrame(thumbLoop);
+
+
+// Click-hold-drag a small view onto the large view. Uses plain pointer events
+// (not the browser's drag-and-drop), so it works regardless of the WebGL canvas.
+function startViewDrag(e, key, handle) {
+  if (e.button !== 0 || layoutMode !== "large") return;
+  const x0 = e.clientX, y0 = e.clientY;
+  let ghost = null;
+  let moved = false;
+  const inLarge = (x, y) => {
+    const r = document.getElementById("viewport").getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom && x < r.right - 240;
+  };
+  const onMove = (ev) => {
+    if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+    if (!moved) {
+      moved = true;
+      ghost = document.createElement("div");
+      ghost.className = "thumb-ghost";
+      ghost.textContent = POOL_LABELS[key];
+      document.body.appendChild(ghost);
+    }
+    ghost.style.left = ev.clientX + 12 + "px";
+    ghost.style.top = ev.clientY + 8 + "px";
+    document.getElementById("viewport").classList.toggle("drop-target", inLarge(ev.clientX, ev.clientY));
+  };
+  const onUp = (ev) => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    document.getElementById("viewport").classList.remove("drop-target");
+    if (ghost) ghost.remove();
+    if (moved && inLarge(ev.clientX, ev.clientY)) swapMain(key);
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}

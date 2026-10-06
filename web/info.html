@@ -134,71 +134,57 @@
 <div id="infoRoot">
 
   <div class="info-header">
-    <h1>Dicom Viewer</h1>
+    <h1>CT Scan Viewer</h1>
     <p class="tagline">Reference &amp; documentation</p>
   </div>
 
   <nav class="info-toc">
     <a href="#intro">Intro</a>
-    <a href="#how-to-use">How to Use</a>
+    <a href="#opening">Opening a scan</a>
     <a href="#toolbar">Toolbar</a>
     <a href="#views">Views</a>
-    <a href="#side-panels">Side Panels</a>
-    <a href="#popout">Pop-out Window</a>
+    <a href="#side-panels">Side panels</a>
+    <a href="#measuring">Measuring</a>
+    <a href="#table">Table &amp; export</a>
     <a href="#oblique">Plane Viewer</a>
+    <a href="#popout">Pop-out windows</a>
   </nav>
 
   <section class="info-section" id="intro">
     <h2>What is this?</h2>
     <p class="lead">
-      Dicom Viewer is a lightweight, local tool for browsing and visualizing DICOM CT studies
-      straight from a folder on your computer — no upload, no server beyond your own machine.
-      It's built on <strong>NiiVue</strong>, a WebGL medical-imaging viewer, with a custom
-      interface layered on top for navigating multiple studies, adjusting the image, measuring
-      distances, and viewing the volume in 2D, 3D, and freely-angled ("oblique") slices.
+      CT Scan Viewer shows CT scans in your browser: 2D slices in three planes, a 3D rendering,
+      a freely-angled Plane Viewer, image adjustments, and measurement tools with a results table
+      you can export. Your scan is converted on your own computer; nothing you load is uploaded.
     </p>
   </section>
 
-  <section class="info-section" id="how-to-use">
-    <h2>How to Use</h2>
+  <section class="info-section" id="opening">
+    <h2>Opening a scan</h2>
     <dl class="how-to">
-      <dt>Opening a study</dt>
+      <dt>Choose or drop a folder</dt>
       <dd>
-        Click <strong>Open Folder…</strong> in the sidebar and choose a folder containing one or
-        more DICOM studies (or point it straight at a single study or series). Studies then
-        appear in the sidebar list, automatically grouped if their folder names follow a
-        <code>GROUP^DAY</code> convention (e.g. <code>MVSG^7_...</code> groups under "MVSG" with
-        day 7).
+        Drag a folder of DICOM files onto the upload area at the top of the left sidebar, or click
+        <strong>Choose Files…</strong> and pick the folder. The conversion runs in your browser, so
+        large studies depend on your computer's speed and on how fast the files can be read.
       </dd>
 
-      <dt>Loading a study</dt>
+      <dt>Slice thickness and Fast preview</dt>
       <dd>
-        Click a study in the list to load it. The first click loads it at whatever slice
-        thickness setting is currently selected (native resolution by default).
+        Set these <em>before</em> choosing files. <strong>Slice thickness</strong> keeps every Nth
+        slice to reach the thickness you enter (for example 0.9 mm on a 0.3 mm series keeps every
+        third slice). <strong>Fast preview</strong> with no thickness entered keeps every second slice.
+        Slices that aren't kept are never read, which is what makes loading faster — especially for
+        folders that sync from a cloud drive. Averaging neighboring slices isn't available in the browser version.
       </dd>
 
-      <dt>Slice thickness</dt>
+      <dt>Study, series, and patient</dt>
       <dd>
-        Leave this field blank to load the full native resolution — every slice, untouched.
-        Set a thickness in mm larger than the scan's native slice spacing to load a smaller,
-        faster volume instead: the server reads every native slice and <em>averages</em> groups
-        of them together into fewer, thicker output slices. This is higher quality (every bit of
-        data contributes) but doesn't save any read time, since every file still has to be read.
+        <strong>Series Info</strong> (top of the left sidebar) shows the patient name from the scan
+        header, the study (the folder you picked), the series description, the number of slices loaded,
+        and the voxel size. The top bar repeats the study and series.
       </dd>
 
-      <dt>Fast preview</dt>
-      <dd>
-        Only takes effect when a slice thickness is also set. Instead of reading every slice and
-        averaging, it probes the native spacing, works out how many slices to skip to roughly hit
-        your target thickness, and then only reads those — the skipped files are never
-        downloaded or opened at all. This is the fastest option, especially when files are slow
-        cloud downloads (e.g. Google Drive), at the cost of a bit of detail (skipped slices
-        decimate rather than average).
-        <div class="note-box">
-          After changing slice thickness or fast preview, click the already-selected study again
-          to re-load it with the new setting.
-        </div>
-      </dd>
     </dl>
   </section>
 
@@ -207,327 +193,223 @@
     <p class="lead">The row of tools across the top of the window.</p>
 
     <h3 class="sub-heading">Interaction modes</h3>
-
-    <div class="feature-row">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-          <circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="22"/><line x1="2" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="22" y2="12"/>
-        </svg>
-      </div>
+    <div class="feature-row" style="border-top:none;">
       <div class="feature-body">
-        <h4>Crosshair <span class="kbd-hint">default mode</span></h4>
-        <p>Click in any 2D panel (Axial/Sagittal/Coronal) to move the crosshair there — it stays in sync across every view, including the 3D render, any pop-out window, and the Plane Viewer. In the 3D panel, a click picks a point on the volume's surface; dragging orbits the view.</p>
+        <h4>Crosshair <span class="kbd-hint">default</span></h4>
+        <p>Click in any 2D panel to move the crosshair; it stays in sync across every view, the 3D rendering, and any pop-out window. In the 3D panel, a click picks a point on the surface and dragging orbits the view.</p>
       </div>
     </div>
-
     <div class="feature-row">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><polyline points="9 6 12 3 15 6"/><polyline points="9 18 12 21 15 18"/><polyline points="6 9 3 12 6 15"/><polyline points="18 9 21 12 18 15"/>
-        </svg>
-      </div>
       <div class="feature-body">
         <h4>Pan / Zoom</h4>
-        <p>Drag to move the image within a panel; scroll to zoom in or out (replaces stepping through 2D slices while this mode is active). Right-click-drag pans in any mode. In the 3D panel, dragging moves the camera sideways instead of orbiting.</p>
+        <p>Drag to move the image within a panel; scroll to zoom. Right-click-drag pans in any mode.</p>
       </div>
     </div>
-
     <div class="feature-row">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2.5" y="9" width="19" height="6" rx="1.2"/><line x1="6" y1="9" x2="6" y2="12.5"/><line x1="10" y1="9" x2="10" y2="12.5"/><line x1="14" y1="9" x2="14" y2="12.5"/><line x1="18" y1="9" x2="18" y2="12.5"/>
-        </svg>
-      </div>
       <div class="feature-body">
         <h4>Measure</h4>
-        <p>Switches the right-hand sidebar to the <strong>Measure</strong> panel and switches dragging in a 2D panel from moving the crosshair/panning to drawing whichever measurement tool is selected there. Opening Measure closes Image Adjustments if it was open (they share the same sidebar slot); switching back to Crosshair, Pan/Zoom, or Rotate 3D closes the Measure panel again. See <a href="#side-panels">Measure</a> below for the full tool set and table/export options.</p>
+        <p>Opens the Measure panel on the right. Dragging or clicking in a 2D panel then draws the selected tool instead of moving the crosshair. See <a href="#measuring">Measuring</a>.</p>
       </div>
     </div>
-
     <div class="feature-row">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-          <ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(-25 12 12)"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
-        </svg>
-      </div>
       <div class="feature-body">
         <h4>Rotate 3D</h4>
-        <p>Drag anywhere in the 3D panel to orbit it — it feels like grabbing the object itself and turning it. Rotation only happens while the mouse button is held, and stops the instant you release it.</p>
+        <p>Drag in the 3D panel to orbit the volume. Rotation only happens while the mouse button is held.</p>
       </div>
     </div>
 
-    <h3 class="sub-heading">Other toolbar buttons</h3>
-
-    <div class="feature-row">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="4" y1="6" x2="20" y2="6"/><circle cx="14" cy="6" r="2.2" fill="currentColor" stroke="none"/>
-          <line x1="4" y1="12" x2="20" y2="12"/><circle cx="9" cy="12" r="2.2" fill="currentColor" stroke="none"/>
-          <line x1="4" y1="18" x2="20" y2="18"/><circle cx="16" cy="18" r="2.2" fill="currentColor" stroke="none"/>
-        </svg>
-      </div>
+    <h3 class="sub-heading">Other buttons</h3>
+    <div class="feature-row" style="border-top:none;">
       <div class="feature-body">
         <h4>Adjust <span class="kbd-hint">closed by default</span></h4>
-        <p>Opens the <strong>Image Adjustments</strong> panel in the right-hand sidebar — Brightness, Contrast, Histogram, and the 3D Render clip slab. Closed by default so the sidebar stays out of the way until you need it; opening Measure closes it, and vice versa.</p>
+        <p>Opens Image Adjustments in the right sidebar: brightness, contrast, the intensity histogram, and the 3D clip slab. Opening Measure closes it, and vice versa.</p>
       </div>
     </div>
-
     <div class="feature-row">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-1"/>
-        </svg>
+      <div class="feature-body">
+        <h4>Views</h4>
+        <p>The layout menu. See <a href="#views">Views</a>.</p>
       </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Plane Viewer</h4>
+        <p>Opens a freely-angled slice in its own window, starting from Axial, Sagittal, or Coronal. See <a href="#oblique">Plane Viewer</a>.</p>
+      </div>
+    </div>
+    <div class="feature-row">
       <div class="feature-body">
         <h4>Undo / Redo</h4>
-        <p>Undo reverses the last discrete action — brightness/contrast, clip slab, view switch, pan/zoom/rotate, and so on. Redo re-applies an undone action; taking any new action clears the redo history.</p>
+        <p>Reverses the last discrete change (adjustments, slab, view, pan, zoom, rotation). Redo re-applies it; any new change clears redo.</p>
       </div>
     </div>
-
     <div class="feature-row">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 8 16 8"/>
-        </svg>
-      </div>
       <div class="feature-body">
         <h4>Reset view</h4>
-        <p>Resets pan, zoom, 3D rotation, brightness, contrast, and the clip slab back to their defaults, and returns to the 4-Panel layout.</p>
+        <p>Returns to the Large view with 3D Rendering, and resets pan, zoom, rotation, brightness, contrast, and the clip slab.</p>
       </div>
     </div>
-
     <div class="feature-row">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.4" r="0.9" fill="currentColor" stroke="none"/>
-        </svg>
-      </div>
       <div class="feature-body">
         <h4>Info</h4>
-        <p>Opens this documentation page in its own window.</p>
+        <p>Opens this page.</p>
       </div>
     </div>
   </section>
 
   <section class="info-section" id="views">
     <h2>Views</h2>
-    <p class="lead">
-      Click the grid icon in the toolbar to open the Views menu — a grid of layout cards for
-      switching the main viewport.
-    </p>
+    <p class="lead">Open the <strong>Views</strong> menu in the toolbar to choose a layout.</p>
 
-    <div class="feature-row">
-      <div class="feature-icon view-icon-box">
-        <svg viewBox="0 0 24 24"><path d="M12 3 4 7l8 4 8-4Z" fill="#ff3b30"/><path d="M4 7v10l8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M20 7v10l-8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-      </div>
+    <div class="feature-row" style="border-top:none;">
       <div class="feature-body">
-        <h4>Axial / Sagittal / Coronal / 3D Rendering <span class="kbd-hint">1 2 3 4</span></h4>
-        <p>Click the card to switch the main viewport to that single view. Click the small expand icon in the card's corner instead to open a larger version of that same view in a pop-out window, without changing the main viewport's layout.</p>
+        <h4>Large view <span class="kbd-hint">6</span></h4>
+        <p>The default. One large view fills the left side, and the other three views stack in a column on the right: Axial, Sagittal, Coronal, or whichever aren't in the large view. The large view starts as 3D Rendering. To swap, <strong>drag a column view by its title bar onto the large view</strong>. A single click in a column view moves the crosshair there, as it does in the large view. Measuring works in the large view only.</p>
       </div>
     </div>
-
     <div class="feature-row">
-      <div class="feature-icon view-icon-box">
-        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.2" fill="#ff3b30"/><rect x="13" y="3" width="8" height="8" rx="1.2" fill="#3b82f6"/><rect x="3" y="13" width="8" height="8" rx="1.2" fill="#34c759"/><rect x="13" y="13" width="8" height="8" rx="1.2" fill="#9ca3af"/></svg>
-      </div>
       <div class="feature-body">
         <h4>4-Panel <span class="kbd-hint">5</span></h4>
-        <p>The default layout — Axial, Sagittal, Coronal, and the 3D render shown together. Each 2D panel's border and crosshair lines are color-coded to match the plane they represent (axial = red, coronal = green, sagittal = blue), and those same colors appear as thin lines through the crosshair in the 3D render too.</p>
+        <p>Axial, Sagittal, Coronal, and 3D Rendering together. Each 2D panel's border and crosshair lines are colored by plane: axial red, coronal green, sagittal blue.</p>
       </div>
     </div>
-
-    <div class="note-box">
-      The freely-angled <strong>Plane Viewer</strong> has its own dedicated toolbar button (next
-      to this Views menu) rather than a card here, since it isn't one of the volume's standard
-      axis-aligned planes — see <a href="#oblique">Plane Viewer</a> below.
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>1-Panel <span class="kbd-hint">1–4</span></h4>
+        <p>Choose one view to fill the window: Axial (1), Sagittal (2), Coronal (3), or 3D Rendering (4). Each entry in the 1-Panel submenu also has a small pop-out button that opens that view in its own window.</p>
+      </div>
     </div>
 
     <h3 class="sub-heading">Orientation letters</h3>
     <div class="feature-row" style="border-top:none;">
-      <div class="feature-body" style="flex:1;">
-        <p>
-          The single letters along the edges of each 2D panel (Axial/Sagittal/Coronal) are
-          standard radiological orientation markers — they say which anatomical direction that
-          edge of the image faces, not a label for the panel itself:
-        </p>
-        <p style="margin-top:8px;">
-          <strong>S</strong> = Superior (toward the head) &nbsp;·&nbsp;
-          <strong>I</strong> = Inferior (toward the feet) &nbsp;·&nbsp;
-          <strong>A</strong> = Anterior (front) &nbsp;·&nbsp;
-          <strong>P</strong> = Posterior (back) &nbsp;·&nbsp;
-          <strong>L</strong> = Left &nbsp;·&nbsp;
-          <strong>R</strong> = Right
-        </p>
-        <p style="margin-top:8px;">
-          Which pair shows up depends on the plane: Axial shows A/P and L/R (it's a cut
-          perpendicular to the body's long axis, so Superior/Inferior don't apply); Sagittal shows
-          S/I and A/P; Coronal shows S/I and L/R.
-        </p>
+      <div class="feature-body">
+        <p>Letters along the edges of the 2D panels are radiological orientation markers: <strong>S</strong> superior, <strong>I</strong> inferior, <strong>A</strong> anterior, <strong>P</strong> posterior, <strong>L</strong> left, <strong>R</strong> right. Axial shows A/P and L/R; Sagittal shows S/I and A/P; Coronal shows S/I and L/R.</p>
       </div>
     </div>
   </section>
 
   <section class="info-section" id="side-panels">
-    <h2>Side Panels</h2>
-    <p class="lead">
-      The right-hand sidebar holds two mutually-exclusive panels — <strong>Image Adjustments</strong>
-      and <strong>Measure</strong> — opened from their matching toolbar buttons, plus the always-visible
-      Series Info section at the top of the left sidebar.
-    </p>
+    <h2>Side panels</h2>
+    <p class="lead">The right sidebar holds Image Adjustments or Measure, one at a time. Series Info is at the top of the left sidebar.</p>
 
     <h3 class="sub-heading">Image Adjustments</h3>
     <div class="feature-row" style="border-top:none;">
-      <div class="feature-body" style="flex:1;">
-        <h4>Brightness</h4>
-        <p>Shifts the whole image lighter or darker (moves the window level) without changing contrast.</p>
+      <div class="feature-body">
+        <h4>Brightness and contrast</h4>
+        <p>Brightness moves the window level; contrast changes the window width. Reset returns each to its default.</p>
       </div>
     </div>
     <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <h4>Contrast</h4>
-        <p>Steepens or flattens the light-to-dark transition (changes the window width) without shifting the midpoint.</p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
+      <div class="feature-body">
         <h4>Histogram</h4>
-        <p>Shows the distribution of intensities in the loaded volume. The two labels under it give the minimum and maximum values in Hounsfield Units (HU).</p>
+        <p>The intensity distribution of the volume. The two labels under it are the minimum and maximum in Hounsfield Units (HU).</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>3D Render — clip slab</h4>
+        <p>Drag the two handles to cut away the bottom and top of the 3D rendering, so you can view just a slab of the volume.</p>
       </div>
     </div>
 
-    <h3 class="sub-heading">3D Render — Clip Slab</h3>
+    <h3 class="sub-heading">Series Info and cursor</h3>
     <div class="feature-row" style="border-top:none;">
-      <div class="feature-body" style="flex:1;">
-        <p>A dual-handle slider: drag the left handle to slice away the bottom of the 3D render, and the right handle to slice away the top. Each side moves independently, letting you carve out just the slab of the volume you want to see in 3D.</p>
-      </div>
-    </div>
-
-    <h3 class="sub-heading">Measure</h3>
-    <div class="feature-row" style="border-top:none;">
-      <div class="feature-body" style="flex:1;">
-        <p>
-          Opening the <strong>Measure</strong> panel shows a grid of tools — <strong>Annotation</strong>,
-          <strong>Line</strong>, <strong>Rectangle</strong>, <strong>Ellipse</strong>, and
-          <strong>Circle</strong> — plus <strong>Undo last</strong> and <strong>Clear all</strong>
-          buttons. Pick a tool, then drag in an Axial, Sagittal, or Coronal panel to draw it. Any
-          number of measurements, of any mix of tools, can be on screen at once, and each stays
-          attached to the exact slice it was drawn on — step to a different slice and it
-          disappears; come back and it reappears.
-        </p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <h4>Measuring from the Plane Viewer pop-out</h4>
-        <p>
-          While Measure is active in the main window, the same tool also works inside an open
-          <a href="#oblique">Plane Viewer</a> pop-out window — drag in its plane-slice panel to
-          draw on that freely-angled plane. All of the controls (tool choice, table, Active
-          Measurement box, CSV export) stay in the main window's sidebar; the pop-out just mirrors
-          the current tool and lets you draw with the mouse there. A shape drawn on an oblique
-          plane stays tied to that exact tilt/rotation/depth, the same way a main-panel shape
-          stays tied to its slice.
-        </p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <h4>Annotation</h4>
-        <p>Drag to place an arrow, then type a label for it when prompted. The label sits at the tail end of the arrow (where you started dragging), not at the arrowhead.</p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <h4>Line, Rectangle, Ellipse, Circle</h4>
-        <p>Drag to draw. Line reports its length in mm; Rectangle, Ellipse, and Circle report their area in mm². Circle is a true circle — it constrains Ellipse's drag to equal width and height.</p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <h4>Active Measurement box</h4>
-        <p>
-          While you're dragging, this box live-updates with the cursor's mm position and a
-          histogram of the pixels under the in-progress shape. Once you release, it switches to
-          showing whichever measurement is <em>selected</em> — click any shape to select it (or
-          right-click it, see below) — and stays visible until you select something else, delete
-          it, or clear all. Two checkboxes here, <strong>Include histogram values</strong> and
-          <strong>Export histograms</strong>, control what gets carried into the table when you
-          click <strong>Move to table</strong> (see below); <strong>Delete</strong> removes the
-          currently-selected measurement from the image and the table together.
-        </p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <h4>Right-click menu (main panels)</h4>
-        <p>Right-clicking directly on a shape in an Axial/Sagittal/Coronal panel opens a small menu with <strong>Delete measurement</strong> and <strong>Add to table</strong> — a quicker path to the table than selecting it and clicking Move to table (though without the histogram checkboxes, which only live in the Active Measurement box).</p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <h4>Table</h4>
-        <p>
-          Each row added via Move to table or the right-click menu gets a number, an editable
-          free-text label (click into the cell and type), and its length/area value. Rows that
-          had <strong>Include histogram values</strong> checked also show summary stats
-          (mean/stdev/min/max) under the value. The <strong>×</strong> button removes just that
-          table row; deleting the underlying shape itself (via the Active Measurement box or the
-          right-click menu) removes its table row too.
-        </p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <h4>Export CSV</h4>
-        <p>Downloads the table as-is — row number, label, value, and the histogram summary stats (if present) — as a .csv file.</p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <h4>Export Histograms</h4>
-        <p>
-          Downloads a separate .csv with the full per-bin histogram for every table row that had
-          <strong>Export histograms</strong> checked when it was added — one block per
-          measurement, each labeled with its row number and text, followed by a row of voxel
-          counts and a row of the corresponding HU bin values underneath.
-        </p>
-      </div>
-    </div>
-
-    <h3 class="sub-heading">Cursor &amp; Series Info</h3>
-    <div class="feature-row" style="border-top:none;">
-      <div class="feature-body" style="flex:1;">
-        <p><strong>Cursor</strong> shows the mm position, voxel index, and HU (Hounsfield Unit) value under the crosshair, live. <strong>Series Info</strong>, at the top of the left sidebar above Open Folder, shows the loaded study's name, series description, slice count, and voxel size.</p>
+      <div class="feature-body">
+        <p><strong>Series Info</strong> shows the patient name, study, series, slice count, and voxel size. The study name is the name of the folder you choose. <strong>Cursor</strong> shows the mm position, voxel index, and HU value under the crosshair, live.</p>
       </div>
     </div>
   </section>
 
-  <section class="info-section" id="popout">
-    <h2>Pop-out Window</h2>
+  <section class="info-section" id="measuring">
+    <h2>Measuring</h2>
     <p class="lead">
-      A larger, dedicated view of a single plane — opened from a Views card's expand icon. (The
-      <a href="#oblique">Plane Viewer</a> below always opens this way too, straight into its own
-      separate window.)
+      Click <strong>Measure</strong> in the toolbar. The Measure panel lists the tools below. Pick one, then
+      draw in an Axial, Sagittal, or Coronal panel — or in the Plane Viewer. Every new measurement is
+      added to the table automatically.
     </p>
+
     <div class="feature-row" style="border-top:none;">
-      <div class="feature-body" style="flex:1;">
-        <p>
-          The crosshair stays in sync with the main window in both directions: move it in the
-          pop-out or the main view and the other follows immediately. For the "3D Rendering"
-          pop-out, dragging rotates both the pop-out and the main 3D view together, and vice
-          versa.
-        </p>
+      <div class="feature-body">
+        <h4>Line</h4>
+        <p>Drag between two points. Reports the length in mm.</p>
       </div>
     </div>
     <div class="feature-row">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="13" height="13" rx="1.5"/><path d="M14 3h7v7"/><path d="M21 3 12 12"/>
-        </svg>
-      </div>
       <div class="feature-body">
-        <h4>Pop out to a separate window</h4>
-        <p>The small icon next to the pop-out's ✕ close button moves the view into a genuine, separate browser window — one you can drag anywhere on screen, including outside the main browser window entirely (e.g. onto a second monitor). Close that window like any other to bring the view back.</p>
+        <h4>Rectangle, Ellipse, Circle</h4>
+        <p>Drag to draw. Reports the area in mm². Circle keeps width and height equal.</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Annotation</h4>
+        <p>Drag to place an arrow, then type its label. The label sits at the tail of the arrow.</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Freehand</h4>
+        <p>Press and drag around the area you want. The enclosed area is reported in mm².</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Spline</h4>
+        <p>Click each point around the outline (at least three). <strong>Close it</strong> by clicking inside the yellow circle that marks the starting point, or by double-clicking. The area is reported in mm².</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Angle</h4>
+        <p>Click three points, with the vertex (the corner of the angle) in the middle. Reports the angle in degrees.</p>
+      </div>
+    </div>
+
+    <h3 class="sub-heading">Working with measurements</h3>
+    <div class="feature-row" style="border-top:none;">
+      <div class="feature-body">
+        <h4>Active Measurement box</h4>
+        <p>While drawing, it shows the cursor position and a histogram of the pixels under the shape. Afterwards it shows the measurement you last drew, or the one you click. <kbd>Esc</kbd> cancels a shape in progress.</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Right-click (2D panels)</h4>
+        <p>Right-click a shape to <strong>Delete measurement</strong> (removes the shape and its table row) or <strong>Add to table</strong>.</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Undo last and Clear all</h4>
+        <p>These erase the drawings on the images only. Table rows stay. Loading a new scan starts a fresh table.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="info-section" id="table">
+    <h2>Table &amp; export</h2>
+    <div class="feature-row" style="border-top:none;">
+      <div class="feature-body">
+        <h4>Include Histograms</h4>
+        <p>When checked, each new measurement's histogram statistics (mean, standard deviation, minimum, maximum) go on its table row, and the full histogram is stored for export. Right-click <strong>Add to table</strong> follows the same setting.</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Table</h4>
+        <p>Rows are numbered. Click a label cell to type a name. The <strong>×</strong> button removes that row only; the shape stays on the image.</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Export CSV</h4>
+        <p>Downloads the table: number, label, value, and histogram statistics where present.</p>
+      </div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-body">
+        <h4>Export Histograms</h4>
+        <p>Downloads the full histogram of each row that was stored with Include Histograms: a label line, a row of voxel counts, and a row of HU values, one block per measurement.</p>
       </div>
     </div>
   </section>
@@ -535,50 +417,39 @@
   <section class="info-section" id="oblique">
     <h2>Plane Viewer</h2>
     <p class="lead">
-      A freely-angled slice through the volume, independent of the standard Axial/Sagittal/Coronal
-      planes — opened from its own <strong>Plane Viewer</strong> button in the toolbar, which lets
-      you pick a starting view (Axial, Sagittal, or Coronal) to tilt from. It always opens in its
-      own separate browser window, with two panels: the plane slice on the left and a
-      <strong>3D View</strong> on the right, open automatically from the start.
+      A freely-angled slice through the volume, opened from the <strong>Plane Viewer</strong> button. It opens in its own window with the plane slice on the left and a 3D View on the right.
     </p>
     <div class="feature-row" style="border-top:none;">
-      <div class="feature-body" style="flex:1;">
-        <p>
-          The <strong>Plane Controls</strong> header sits above the three sliders, each element
-          lined up over the slider it relates to: the label, the circular-arrow <strong>Reset</strong>
-          button, and the <strong>Crosshair</strong>/<strong>Pan</strong>/<strong>Zoom</strong> mode
-          buttons over Tilt; the <strong>Plane</strong>/<strong>Object</strong> lock switch over
-          Rotate; and the <strong>3D View</strong> switch over Depth. Reset restores Tilt, Rotate,
-          Depth, zoom, pan, the crosshair, and the 3D View panel's camera/position to how they were
-          the moment this window opened — not wherever the main window has moved on to since. It
-          leaves the mode buttons and the lock switch alone, since those are tool choices rather than
-          positions.
-        </p>
+      <div class="feature-body">
+        <h4>Controls</h4>
+        <p><strong>Tilt</strong>, <strong>Rotate</strong>, and <strong>Depth</strong> move the plane. The <strong>Plane</strong>/<strong>Object</strong> switch chooses whether the sliders move the plane through a fixed volume or move the volume past a fixed plane. The circular-arrow button resets the plane to where it opened.</p>
       </div>
     </div>
     <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <p><strong>Tilt</strong>, <strong>Rotate</strong>, and <strong>Depth</strong> are all centered at their own midpoint — a tick mark there marks the plane's original position on each. Tilt and Rotate are offsets from the starting angle, not absolute angles: dragging Tilt left dips the right side of the plane down (right dips the left side down), and dragging Rotate left or right turns the plane that way — both pivoting around the crosshair, which stays fixed in place. Depth still moves the plane along its own normal, away from the crosshair.</p>
+      <div class="feature-body">
+        <h4>Modes</h4>
+        <p><strong>Crosshair</strong> (default): a click moves the crosshair, dragging tilts and rotates the plane, and scrolling moves through the volume. <strong>Pan/Zoom</strong>: dragging pans and scrolling zooms. The yellow crosshair marker is shown in Crosshair mode and hidden in Pan/Zoom and Measure, so it doesn't get in the way.</p>
       </div>
     </div>
     <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <p>The window has its own <strong>Crosshair</strong> and <strong>Pan/Zoom</strong> mode buttons (independent of the main window's toolbar) — and they apply separately to each panel, so the plane slice and the 3D View can be framed differently. With Crosshair active — the default — a click moves the crosshair to that point (synced to every other view, including the main window), while dragging tilts/rotates the plane slice (or orbits the 3D View's camera), and scrolling moves the plane through the volume (depth). With Pan/Zoom active, dragging pans whichever panel you drag in and scrolling zooms it, independently of the other panel.</p>
+      <div class="feature-body">
+        <h4>Orientation</h4>
+        <p>The plane image is mirrored left-to-right to match the main viewer, so a structure appears on the same side in both.</p>
       </div>
     </div>
     <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <p>A small yellow crosshair marks your current position within the plane slice, and a translucent purple plane appears in the main window's 3D rendering showing exactly where that slice is being cut from. The crosshair always sits at the plane's center: moving Depth carries it along with the plane, and clicking a new point resets Depth so the plane recenters there.</p>
+      <div class="feature-body">
+        <h4>Measuring in the Plane Viewer</h4>
+        <p>Turn on Measure in the main window, then use the Measure tools directly on the plane image. The cursor becomes a small dot while measuring. Results appear in the main window's table, and Undo last / Clear all work as they do elsewhere.</p>
       </div>
     </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <p>The <strong>3D View</strong> switch shows/hides a second panel with the same plane indicator in its own 3D view, tracking the main window's 3D rotation both ways — open automatically whenever this window loads. Clicking a point on the volume there also moves the crosshair — same as clicking the plane slice — while dragging orbits that panel's camera (in Crosshair mode; Pan/Zoom mode pans instead, moving the plane and the volume together as one).</p>
-      </div>
-    </div>
-    <div class="feature-row">
-      <div class="feature-body" style="flex:1;">
-        <p>The <strong>Plane</strong>/<strong>Object</strong> switch picks what the Tilt/Rotate/Depth sliders actually move in the 3D View panel. <strong>Plane</strong> (default) is a plain slider: the plane moves through a fixed volume, same as the plane slice panel always shows. <strong>Object</strong> instead holds the plane visually fixed and moves the volume to match — Tilt/Rotate orbit that panel's camera around it, and Depth slides the volume up or down past the fixed plane. Either way, the plane slice panel and the main window's plane indicator always show the same cut; the switch only changes which one appears to move in the 3D View panel.</p>
+  </section>
+
+  <section class="info-section" id="popout">
+    <h2>Pop-out windows</h2>
+    <div class="feature-row" style="border-top:none;">
+      <div class="feature-body">
+        <p>A pop-out is a separate browser window showing one view, opened from the Views menu's pop-out buttons or the Plane Viewer. The crosshair stays synchronized with the main window in both directions. You can drag a pop-out anywhere on screen, including a second monitor.</p>
       </div>
     </div>
   </section>

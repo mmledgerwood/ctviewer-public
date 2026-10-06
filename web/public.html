@@ -103,90 +103,27 @@
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
-        <div id="viewsMenu" class="dropdown-menu view-grid hidden">
-          <div class="view-card">
-            <button class="view-main" data-view="axial">
-              <svg class="view-icon" viewBox="0 0 24 24">
-                <path d="M12 3 4 7l8 4 8-4Z" fill="#ff3b30"/>
-                <path d="M4 7v10l8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-                <path d="M20 7v10l-8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-              </svg>
-              <span>Axial</span>
-            </button>
-            <kbd>1</kbd>
-            <button class="view-popout-btn" data-popout="axial" data-tooltip="Open larger view" aria-label="Open larger Axial view">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="13" height="13" rx="1.5"/>
-                <path d="M14 3h7v7"/>
-                <path d="M21 3 12 12"/>
-              </svg>
-            </button>
-          </div>
-          <div class="view-card">
-            <button class="view-main" data-view="sagittal">
-              <svg class="view-icon" viewBox="0 0 24 24">
-                <path d="M12 3 4 7l8 4 8-4Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-                <path d="M4 7v10l8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-                <path d="M20 7v10l-8 4V11Z" fill="#3b82f6"/>
-              </svg>
-              <span>Sagittal</span>
-            </button>
-            <kbd>2</kbd>
-            <button class="view-popout-btn" data-popout="sagittal" data-tooltip="Open larger view" aria-label="Open larger Sagittal view">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="13" height="13" rx="1.5"/>
-                <path d="M14 3h7v7"/>
-                <path d="M21 3 12 12"/>
-              </svg>
-            </button>
-          </div>
-          <div class="view-card">
-            <button class="view-main" data-view="coronal">
-              <svg class="view-icon" viewBox="0 0 24 24">
-                <path d="M12 3 4 7l8 4 8-4Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-                <path d="M4 7v10l8 4V11Z" fill="#34c759"/>
-                <path d="M20 7v10l-8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-              </svg>
-              <span>Coronal</span>
-            </button>
-            <kbd>3</kbd>
-            <button class="view-popout-btn" data-popout="coronal" data-tooltip="Open larger view" aria-label="Open larger Coronal view">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="13" height="13" rx="1.5"/>
-                <path d="M14 3h7v7"/>
-                <path d="M21 3 12 12"/>
-              </svg>
-            </button>
-          </div>
-          <div class="view-card">
-            <button class="view-main" data-view="render">
-              <svg class="view-icon" viewBox="0 0 24 24">
-                <path d="M12 3 4 7l8 4 8-4Z" fill="#e5e7eb"/>
-                <path d="M4 7v10l8 4V11Z" fill="#9ca3af"/>
-                <path d="M20 7v10l-8 4V11Z" fill="#6b7280"/>
-              </svg>
-              <span>3D Rendering</span>
-            </button>
-            <kbd>4</kbd>
-            <button class="view-popout-btn" data-popout="render" data-tooltip="Open larger view" aria-label="Open larger 3D Rendering view">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="13" height="13" rx="1.5"/>
-                <path d="M14 3h7v7"/>
-                <path d="M21 3 12 12"/>
-              </svg>
-            </button>
-          </div>
-          <div class="view-card">
-            <button class="view-main active" data-view="multi">
-              <svg class="view-icon" viewBox="0 0 24 24">
-                <rect x="3" y="3" width="8" height="8" rx="1.2" fill="#ff3b30"/>
-                <rect x="13" y="3" width="8" height="8" rx="1.2" fill="#3b82f6"/>
-                <rect x="3" y="13" width="8" height="8" rx="1.2" fill="#34c759"/>
-                <rect x="13" y="13" width="8" height="8" rx="1.2" fill="#9ca3af"/>
-              </svg>
-              <span>4-Panel</span>
-            </button>
-            <kbd>5</kbd>
+        <div id="viewsMenu" class="dropdown-menu views-menu hidden">
+          <button class="views-item" data-layout-choice="large"><svg class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="12" height="17" rx="1.2" fill="currentColor" stroke="none"/><rect x="16" y="3.5" width="5.5" height="5" rx="0.8"/><rect x="16" y="10" width="5.5" height="5" rx="0.8"/><rect x="16" y="16.5" width="5.5" height="4" rx="0.8"/></svg><span>Large view</span></button>
+          <button class="views-item" data-layout-choice="grid"><svg class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.2"/><rect x="13" y="3" width="8" height="8" rx="1.2"/><rect x="3" y="13" width="8" height="8" rx="1.2"/><rect x="13" y="13" width="8" height="8" rx="1.2"/></svg><span>4-Panel</span></button>
+          <button class="views-item views-parent" id="onePanelToggle"><svg class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1.5"/></svg><span>1-Panel</span><svg class="views-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
+          <div id="onePanelMenu" class="views-submenu hidden">
+            <div class="views-row">
+              <button class="views-item" data-one-view="axial"><svg class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7l8 4 8-4Z" fill="#ff3b30"/><path d="M4 7v10l8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M20 7v10l-8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg><span>Axial</span></button>
+              <button class="view-popout-btn" data-popout="axial" data-tooltip="Open larger view" aria-label="Open larger Axial view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="13" height="13" rx="1.5"/><path d="M14 3h7v7"/><path d="M21 3 12 12"/></svg></button>
+            </div>
+            <div class="views-row">
+              <button class="views-item" data-one-view="sagittal"><svg class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7l8 4 8-4Z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4 7v10l8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M20 7v10l-8 4V11Z" fill="#3b82f6"/></svg><span>Sagittal</span></button>
+              <button class="view-popout-btn" data-popout="sagittal" data-tooltip="Open larger view" aria-label="Open larger Sagittal view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="13" height="13" rx="1.5"/><path d="M14 3h7v7"/><path d="M21 3 12 12"/></svg></button>
+            </div>
+            <div class="views-row">
+              <button class="views-item" data-one-view="coronal"><svg class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7l8 4 8-4Z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4 7v10l8 4V11Z" fill="#34c759"/><path d="M20 7v10l-8 4V11Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg><span>Coronal</span></button>
+              <button class="view-popout-btn" data-popout="coronal" data-tooltip="Open larger view" aria-label="Open larger Coronal view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="13" height="13" rx="1.5"/><path d="M14 3h7v7"/><path d="M21 3 12 12"/></svg></button>
+            </div>
+            <div class="views-row">
+              <button class="views-item" data-one-view="render"><svg class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7l8 4 8-4Z" fill="#e5e7eb"/><path d="M4 7v10l8 4V11Z" fill="#9ca3af"/><path d="M20 7v10l-8 4V11Z" fill="#6b7280"/></svg><span>3D Rendering</span></button>
+              <button class="view-popout-btn" data-popout="render" data-tooltip="Open larger view" aria-label="Open larger 3D Rendering view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="13" height="13" rx="1.5"/><path d="M14 3h7v7"/><path d="M21 3 12 12"/></svg></button>
+            </div>
           </div>
         </div>
       </div>
@@ -229,6 +166,7 @@
         </button>
       </div>
 
+
       <div class="toolgroup" id="infoGroup">
         <button id="infoBtn" class="icon-btn" data-tooltip="Info / Help" aria-label="Info and help">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -253,9 +191,6 @@
           <span>mm</span>
         </div>
         <label class="chk thickness-fast"><input type="checkbox" id="fastPreview" /> Fast preview (load fewer slices)</label>
-        <p class="upload-privacy-note">
-          Slice thickness keeps every Nth slice to reach the thickness you enter; slices that aren't kept are never read, which is what makes loading fast.
-        </p>
 
         <div id="uploadDropZone" style="margin-top:14px;">
           Drag a folder of DICOM files here,<br />or
@@ -274,6 +209,8 @@
 
       <main id="viewport">
         <canvas id="gl"></canvas>
+        <div id="thumbColumn"></div>
+        <div id="thumbPool" style="display:none"></div>
         <div id="panelOverlay"></div>
         <svg id="measureOverlay"></svg>
         <div id="loadingOverlay" class="hidden">
