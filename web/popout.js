@@ -501,7 +501,7 @@ function renderObliqueSlice() {
   for (let j = 0; j < H; j++) {
     const offV = (j - H / 2) * mmPerPx + obliquePanV;
     for (let i = 0; i < W; i++) {
-      const offU = (i - W / 2) * mmPerPx + obliquePanU;
+      const offU = (W / 2 - i) * mmPerPx + obliquePanU;
       const mmX = centerMM[0] + normal[0] * depthMM + u[0] * offU - v[0] * offV;
       const mmY = centerMM[1] + normal[1] * depthMM + u[1] * offU - v[1] * offV;
       const mmZ = centerMM[2] + normal[2] * depthMM + u[2] * offU - v[2] * offV;
@@ -531,7 +531,7 @@ function renderObliqueSlice() {
   // marker and the plane stay linked by construction, including through
   // Depth changes.
   if (obliqueMode === "crosshair" && !mainMeasureActive) {
-    const cx = W / 2 - obliquePanU / mmPerPx, cy = H / 2 - obliquePanV / mmPerPx, arm = 9, gap = 3;
+    const cx = W / 2 + obliquePanU / mmPerPx, cy = H / 2 - obliquePanV / mmPerPx, arm = 9, gap = 3;
     ctx.strokeStyle = "#fbbf24";
     ctx.lineWidth = 0.5;
     ctx.beginPath();
@@ -811,7 +811,7 @@ function wireObliqueInteraction() {
     drag.ly = e.clientY;
     if (drag.mode === "pan") {
       const mmPerPx = obliqueFovMM / Math.max(canvas.width, canvas.height, 1) / obliqueZoom;
-      obliquePanU -= dx * mmPerPx;
+      obliquePanU += dx * mmPerPx;
       obliquePanV -= dy * mmPerPx;
     } else {
       // Wrap Rotate within its own [-180, 180] range (it's a full-circle
@@ -854,7 +854,7 @@ function setObliqueCrosshairFromClick(e) {
   const centerMM = nv.frac2mm(nv.scene.crosshairPos);
   const mmPerPx = obliqueFovMM / Math.max(canvas.width, canvas.height, 1) / obliqueZoom;
   const mm = obliquePixelToMM(
-    azimuthDeg, elevationDeg, depthMM, centerMM, mmPerPx, obliquePanU, obliquePanV, canvas.width, canvas.height, px, py, rotateDeg
+    azimuthDeg, elevationDeg, depthMM, centerMM, mmPerPx, obliquePanU, obliquePanV, canvas.width, canvas.height, canvas.width - px, py, rotateDeg
   );
   const frac = nv.mm2frac(mm);
   if (frac[0] < 0 || frac[0] > 1 || frac[1] < 0 || frac[1] > 1 || frac[2] < 0 || frac[2] > 1) return;

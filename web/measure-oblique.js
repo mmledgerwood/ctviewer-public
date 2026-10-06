@@ -56,15 +56,16 @@ export function createObliqueMeasureRelay(nv, canvas, getPlaneParams, host) {
   function pixelToMM(px, py, params) {
     return obliquePixelToMM(
       params.azimuthDeg, params.elevationDeg, params.depthMM, params.centerMM,
-      params.mmPerPx, params.panU, params.panV, params.W, params.H, px, py, params.rotateDeg
+      params.mmPerPx, params.panU, params.panV, params.W, params.H, params.W - px, py, params.rotateDeg
     );
   }
 
   function mmToPixel(mm, params) {
-    return obliqueMMToPixel(
+    const [x, y] = obliqueMMToPixel(
       params.azimuthDeg, params.elevationDeg, params.depthMM, params.centerMM,
       params.mmPerPx, params.panU, params.panV, params.W, params.H, mm, params.rotateDeg
     );
+    return [params.W - x, y];
   }
 
   function planeKey(params) {
